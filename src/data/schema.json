@@ -1,0 +1,125 @@
+{
+  "tables": [
+    {
+      "id": "1",
+      "label": "Products",
+      "position": { "x": 0, "y": 0 },
+      "schema": [
+        { "title": "id", "type": "uuid" },
+        { "title": "name", "type": "varchar" },
+        { "title": "description", "type": "varchar" },
+        { "title": "warehouse_id", "type": "uuid" },
+        { "title": "supplier_id", "type": "uuid" },
+        { "title": "price", "type": "money" },
+        { "title": "quantity", "type": "int4" }
+      ]
+    },
+    {
+      "id": "2",
+      "label": "Warehouses",
+      "position": { "x": 350, "y": -100 },
+      "schema": [
+        { "title": "id", "type": "uuid" },
+        { "title": "name", "type": "varchar" },
+        { "title": "address", "type": "varchar" },
+        { "title": "capacity", "type": "int4" }
+      ]
+    },
+    {
+      "id": "3",
+      "label": "Suppliers",
+      "position": { "x": 350, "y": 200 },
+      "schema": [
+        { "title": "id", "type": "uuid" },
+        { "title": "name", "type": "varchar" },
+        { "title": "description", "type": "varchar" },
+        { "title": "country", "type": "varchar" }
+      ]
+    },
+    {
+      "id": "4",
+      "label": "Orders",
+      "position": { "x": 700, "y": 0 },
+      "schema": [
+        { "title": "id", "type": "uuid" },
+        { "title": "customer_id", "type": "uuid" },
+        { "title": "order_date", "type": "timestamp" },
+        { "title": "status", "type": "varchar" },
+        { "title": "total_amount", "type": "money" }
+      ]
+    },
+    {
+      "id": "5",
+      "label": "Customers",
+      "position": { "x": 1050, "y": 0 },
+      "schema": [
+        { "title": "id", "type": "uuid" },
+        { "title": "name", "type": "varchar" },
+        { "title": "email", "type": "varchar" },
+        { "title": "phone", "type": "varchar" },
+        { "title": "address", "type": "varchar" }
+      ]
+    },
+    {
+      "id": "6",
+      "label": "OrderItems",
+      "position": { "x": 700, "y": 250 },
+      "schema": [
+        { "title": "id", "type": "uuid" },
+        { "title": "order_id", "type": "uuid" },
+        { "title": "product_id", "type": "uuid" },
+        { "title": "quantity", "type": "int4" },
+        { "title": "unit_price", "type": "money" }
+      ]
+    },
+    {
+      "id": "7",
+      "label": "Categories",
+      "position": { "x": 0, "y": 300 },
+      "schema": [
+        { "title": "id", "type": "uuid" },
+        { "title": "name", "type": "varchar" },
+        { "title": "description", "type": "varchar" },
+        { "title": "parent_id", "type": "uuid" }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "products-warehouses",
+      "source": "1",
+      "target": "2",
+      "sourceHandle": "warehouse_id",
+      "targetHandle": "id"
+    },
+    {
+      "id": "products-suppliers",
+      "source": "1",
+      "target": "3",
+      "sourceHandle": "supplier_id",
+      "targetHandle": "id"
+    },
+    {
+      "id": "orders-customers",
+      "source": "4",
+      "target": "5",
+      "sourceHandle": "customer_id",
+      "targetHandle": "id"
+    },
+    {
+      "id": "orderitems-orders",
+      "source": "6",
+      "target": "4",
+      "sourceHandle": "order_id",
+      "targetHandle": "id"
+    },
+    {
+      "id": "orderitems-products",
+      "source": "6",
+      "target": "1",
+      "sourceHandle": "product_id",
+      "targetHandle": "id"
+    }
+  ]
+}
+

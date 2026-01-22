@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Source Code Pro', monospace;
+    font-feature-settings: 'liga' 1, 'calt' 1;
+  }
+}
+
+/* Ensure edges are visible */
+.react-flow__edge {
+  pointer-events: all;
+}
+
+.react-flow__edge path {
+  stroke-width: 1.5px !important;
+}
+
+.react-flow__edge.edge-gray path {
+  stroke: #9ca3af !important;
+  stroke-width: 1.5px !important;
+  opacity: 0.6 !important;
+}
+
+/* Ensure all edges are visible */
+.react-flow__edge:not(.edge-gray) path {
+  stroke: #b1b1b7 !important;
+  stroke-width: 1.5px !important;
+  opacity: 1 !important;
+}
+
+/* Animated barber pole effect */
+@keyframes barberPole {
+  0% {
+    background-position: 0% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+.barber-pole {
+  position: relative;
+  overflow: hidden;
+}
+
+.barber-pole::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -30deg,
+    #00684A 0 24px,
+    rgba(0, 237, 100, 0.9) 24px 26px
+  );
+  background-size: 200% 200%;
+  animation: barberPole 2s linear infinite;
+  border-radius: inherit;
+}
+
+.barber-pole__label {
+  position: relative;
+  z-index: 1;
+}
