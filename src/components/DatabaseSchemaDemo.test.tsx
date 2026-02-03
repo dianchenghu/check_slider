@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import DatabaseSchemaDemo from './DatabaseSchemaDemo'
-import { createContext } from 'react'
 
 // Mock the useMode hook
 const mockSetSelectedHandle = vi.fn()

@@ -27,7 +27,8 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "vitest.config.ts"],
+  "include": ["src"],
+  "exclude": ["src/ai-demo"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
 

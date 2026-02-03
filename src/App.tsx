@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, createContext, useContext, useMemo, useRef } from "react";
-import { Background, ReactFlow, ReactFlowProvider, useNodesState, useEdgesState, addEdge, Connection, OnConnectStartParams, Node, useReactFlow } from "@xyflow/react";
+import { useState, useCallback, useEffect, createContext, useContext, useMemo } from "react";
+import { Background, ReactFlow, ReactFlowProvider, useNodesState, useEdgesState, addEdge, Connection, OnConnectStartParams, Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import DatabaseSchemaDemo from "./components/DatabaseSchemaDemo";
 import CompactCollectionNode from "./components/CompactCollectionNode";
@@ -62,7 +62,6 @@ function FlowContent() {
   const [isRecommendationsPanelOpen, setIsRecommendationsPanelOpen] = useState(false);
   const [isGroupsOnly, setIsGroupsOnly] = useState(false);
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
-  const reactFlowInstance = useReactFlow();
 
   const viewNodes = useMemo(() => {
     const compactWidth = 240;
@@ -71,8 +70,6 @@ function FlowContent() {
     const groupHeaderHeight = 28;
     const compactGapX = 20;
     const compactGapY = 16;
-
-    const groupedNodes = nodes.filter((node) => node.parentId);
 
     const compactNodes = isGroupsOnly
       ? nodes.map((node) => {
@@ -160,16 +157,14 @@ function FlowContent() {
         rowHeights[row] = Math.max(rowHeights[row], size.height);
       });
 
-      const colOffsets = colWidths.reduce<number[]>((acc, width, idx) => {
-        const prev = acc[idx - 1] ?? 0;
-        const offset = idx === 0 ? 0 : prev + colWidths[idx - 1] + compactGapX;
-        return [...acc, offset];
-      }, []);
-      const rowOffsets = rowHeights.reduce<number[]>((acc, height, idx) => {
-        const prev = acc[idx - 1] ?? 0;
-        const offset = idx === 0 ? 0 : prev + rowHeights[idx - 1] + compactGapY;
-        return [...acc, offset];
-      }, []);
+      const colOffsets: number[] = [];
+      for (let idx = 0; idx < colWidths.length; idx += 1) {
+        colOffsets[idx] = idx === 0 ? 0 : colOffsets[idx - 1] + colWidths[idx - 1] + compactGapX;
+      }
+      const rowOffsets: number[] = [];
+      for (let idx = 0; idx < rowHeights.length; idx += 1) {
+        rowOffsets[idx] = idx === 0 ? 0 : rowOffsets[idx - 1] + rowHeights[idx - 1] + compactGapY;
+      }
 
       const positions = new Map<string, { x: number; y: number }>();
       ordered.forEach((node, index) => {
