@@ -3,7 +3,6 @@ import { useReactFlow } from "@xyflow/react";
 
 interface RectangleDrawerProps {
   isGroupingMode: boolean;
-  isDrawingRectangle: boolean;
   setIsDrawingRectangle: (value: boolean) => void;
   setRectangleStart: (value: { x: number; y: number } | null) => void;
   setRectangleEnd: (value: { x: number; y: number } | null) => void;
@@ -12,7 +11,6 @@ interface RectangleDrawerProps {
 
 export function RectangleDrawer({
   isGroupingMode,
-  isDrawingRectangle,
   setIsDrawingRectangle,
   setRectangleStart,
   setRectangleEnd,

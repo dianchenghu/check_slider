@@ -492,7 +492,6 @@ function FlowContent() {
         <Background />
         <RectangleDrawer
           isGroupingMode={isGroupingMode}
-          isDrawingRectangle={isDrawingRectangle}
           setIsDrawingRectangle={setIsDrawingRectangle}
           setRectangleStart={setRectangleStart}
           setRectangleEnd={setRectangleEnd}
@@ -503,7 +502,6 @@ function FlowContent() {
           setIsGroupingMode={setIsGroupingMode}
           groupCounter={groupCounter}
           setGroupCounter={setGroupCounter}
-          mousePosition={mousePosition}
           setMousePosition={setMousePosition}
           isDrawingRectangle={isDrawingRectangle}
           setIsDrawingRectangle={setIsDrawingRectangle}

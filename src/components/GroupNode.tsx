@@ -2,7 +2,6 @@ import { memo, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { NodeResizer, useReactFlow, useNodeId } from "@xyflow/react";
 import { BaseNode } from "@/components/base-node";
-import { cn } from "@/lib/utils";
 
 export type GroupNodeData = {
   label: string;
@@ -15,7 +14,7 @@ const GroupNode = memo(({ data }: { data: GroupNodeData }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const editingInputRef = useRef<HTMLInputElement>(null);
   const nodeId = useNodeId();
-  const { setNodes, getNodes } = useReactFlow();
+  const { setNodes } = useReactFlow();
 
   useEffect(() => {
     if (isEditing && editingInputRef.current) {

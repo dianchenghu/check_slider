@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 
 interface RecommendationCard {
@@ -103,8 +102,7 @@ interface RecommendationsPanelProps {
 }
 
 export function RecommendationsPanel({ isOpen, onClose }: RecommendationsPanelProps) {
-  const { getNode, getViewport, setViewport } = useReactFlow();
-  const [dismissedCards, setDismissedCards] = useState<Set<string>>(new Set());
+  const { getNode, setViewport } = useReactFlow();
 
   const handlePathClick = (nodeId?: string) => {
     if (!nodeId) return;

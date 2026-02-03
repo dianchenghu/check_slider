@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useReactFlow, Node } from "@xyflow/react";
 
 interface GroupingHandlerProps {
@@ -6,7 +6,6 @@ interface GroupingHandlerProps {
   setIsGroupingMode: (value: boolean) => void;
   groupCounter: number;
   setGroupCounter: (value: number | ((prev: number) => number)) => void;
-  mousePosition: { x: number; y: number };
   setMousePosition: (value: { x: number; y: number }) => void;
   isDrawingRectangle: boolean;
   setIsDrawingRectangle: (value: boolean) => void;
@@ -21,7 +20,6 @@ export function GroupingHandler({
   setIsGroupingMode,
   groupCounter,
   setGroupCounter,
-  mousePosition,
   setMousePosition,
   isDrawingRectangle,
   setIsDrawingRectangle,
