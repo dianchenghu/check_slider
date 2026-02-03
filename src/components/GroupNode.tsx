@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { useReactFlow, useNodeId } from "@xyflow/react";
+import { NodeResizer, useReactFlow, useNodeId } from "@xyflow/react";
 import { BaseNode } from "@/components/base-node";
 import { cn } from "@/lib/utils";
 
@@ -92,6 +92,7 @@ const GroupNode = memo(({ data }: { data: GroupNodeData }) => {
         className="p-0 relative overflow-visible border-2 border-blue-400 bg-blue-50/30"
         style={{ width: "100%", height: "100%" }}
       >
+        <NodeResizer minWidth={240} minHeight={160} handleStyle={{ width: 10, height: 10 }} />
         <div className="absolute top-2 left-2 flex items-center gap-2 z-10">
           {isEditing ? (
             <input
@@ -106,7 +107,7 @@ const GroupNode = memo(({ data }: { data: GroupNodeData }) => {
             />
           ) : (
             <span
-              className="font-semibold text-sm text-gray-800 cursor-text"
+              className="font-semibold text-sm text-gray-800 cursor-text bg-white/90 border border-blue-200 rounded px-2 py-0.5 shadow-sm"
               onDoubleClick={handleLabelDoubleClick}
             >
               {data.label}

@@ -13,6 +13,7 @@ export interface SchemaRelationship {
   target: string;
   sourceHandle: string;
   targetHandle: string;
+  manySide?: "source" | "target";
 }
 
 export interface SchemaData {
@@ -38,6 +39,9 @@ export function loadSchemaFromJSON(data: SchemaData): { nodes: Node[]; edges: Ed
     sourceHandle: rel.sourceHandle,
     targetHandle: rel.targetHandle,
     type: "smoothstep",
+    data: {
+      manySide: rel.manySide,
+    },
   }));
 
   return { nodes, edges };

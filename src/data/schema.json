@@ -11,7 +11,37 @@
         { "title": "warehouse_id", "type": "uuid" },
         { "title": "supplier_id", "type": "uuid" },
         { "title": "price", "type": "money" },
-        { "title": "quantity", "type": "int4" }
+        { "title": "quantity", "type": "int4" },
+        { "title": "sku", "type": "varchar" },
+        { "title": "barcode", "type": "varchar" },
+        { "title": "category_id", "type": "uuid" },
+        { "title": "brand", "type": "varchar" },
+        { "title": "color", "type": "varchar" },
+        { "title": "size", "type": "varchar" },
+        { "title": "weight_grams", "type": "int4" },
+        { "title": "height_cm", "type": "int4" },
+        { "title": "width_cm", "type": "int4" },
+        { "title": "depth_cm", "type": "int4" },
+        { "title": "material", "type": "varchar" },
+        { "title": "model_number", "type": "varchar" },
+        { "title": "release_date", "type": "date" },
+        { "title": "discontinued_date", "type": "date" },
+        { "title": "is_active", "type": "boolean" },
+        { "title": "is_featured", "type": "boolean" },
+        { "title": "rating_avg", "type": "numeric" },
+        { "title": "rating_count", "type": "int4" },
+        { "title": "tags", "type": "varchar[]" },
+        { "title": "image_url", "type": "varchar" },
+        { "title": "thumbnail_url", "type": "varchar" },
+        { "title": "min_order_qty", "type": "int4" },
+        { "title": "max_order_qty", "type": "int4" },
+        { "title": "reorder_level", "type": "int4" },
+        { "title": "lead_time_days", "type": "int4" },
+        { "title": "tax_code", "type": "varchar" },
+        { "title": "cost", "type": "money" },
+        { "title": "margin_pct", "type": "numeric" },
+        { "title": "last_restocked_at", "type": "timestamp" },
+        { "title": "updated_by", "type": "varchar" }
       ]
     },
     {
@@ -45,7 +75,25 @@
         { "title": "customer_id", "type": "uuid" },
         { "title": "order_date", "type": "timestamp" },
         { "title": "status", "type": "varchar" },
-        { "title": "total_amount", "type": "money" }
+        { "title": "total_amount", "type": "money" },
+        { "title": "order_number", "type": "varchar" },
+        { "title": "currency", "type": "varchar" },
+        { "title": "tax_amount", "type": "money" },
+        { "title": "discount_amount", "type": "money" },
+        { "title": "shipping_amount", "type": "money" },
+        { "title": "subtotal_amount", "type": "money" },
+        { "title": "shipping_method", "type": "varchar" },
+        { "title": "shipping_address_id", "type": "uuid" },
+        { "title": "billing_address_id", "type": "uuid" },
+        { "title": "payment_method", "type": "varchar" },
+        { "title": "payment_status", "type": "varchar" },
+        { "title": "fulfillment_status", "type": "varchar" },
+        { "title": "tracking_number", "type": "varchar" },
+        { "title": "estimated_delivery_date", "type": "date" },
+        { "title": "delivered_at", "type": "timestamp" },
+        { "title": "cancel_reason", "type": "varchar" },
+        { "title": "notes", "type": "varchar" },
+        { "title": "channel", "type": "varchar" }
       ]
     },
     {
@@ -63,7 +111,7 @@
     {
       "id": "6",
       "label": "OrderItems",
-      "position": { "x": 700, "y": 250 },
+      "position": { "x": 1050, "y": 250 },
       "schema": [
         { "title": "id", "type": "uuid" },
         { "title": "order_id", "type": "uuid" },
@@ -75,7 +123,7 @@
     {
       "id": "7",
       "label": "Categories",
-      "position": { "x": 0, "y": 300 },
+      "position": { "x": 350, "y": 450 },
       "schema": [
         { "title": "id", "type": "uuid" },
         { "title": "name", "type": "varchar" },
@@ -90,14 +138,16 @@
       "source": "1",
       "target": "2",
       "sourceHandle": "warehouse_id",
-      "targetHandle": "id"
+      "targetHandle": "id",
+      "manySide": "source"
     },
     {
       "id": "products-suppliers",
       "source": "1",
       "target": "3",
       "sourceHandle": "supplier_id",
-      "targetHandle": "id"
+      "targetHandle": "id",
+      "manySide": "source"
     },
     {
       "id": "orders-customers",
@@ -111,7 +161,8 @@
       "source": "6",
       "target": "4",
       "sourceHandle": "order_id",
-      "targetHandle": "id"
+      "targetHandle": "id",
+      "manySide": "source"
     },
     {
       "id": "orderitems-products",

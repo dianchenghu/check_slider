@@ -82,32 +82,68 @@
   opacity: 1 !important;
 }
 
-/* Animated barber pole effect */
-@keyframes barberPole {
+/* Subtle AI-style glow sweep */
+@keyframes aiSweep {
   0% {
-    background-position: 0% 100%;
+    background-position: -60% 50%;
+    opacity: 0.35;
+  }
+  50% {
+    background-position: 50% 50%;
+    opacity: 0.55;
   }
   100% {
-    background-position: 0% 0%;
+    background-position: 160% 50%;
+    opacity: 0.35;
+  }
+}
+
+@keyframes aiPulse {
+  0% {
+    opacity: 0.2;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.2;
+    transform: scale(0.98);
   }
 }
 
 .barber-pole {
   position: relative;
   overflow: hidden;
+  background-color: #00684A;
 }
 
 .barber-pole::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    -30deg,
-    #00684A 0 24px,
-    rgba(0, 237, 100, 0.9) 24px 26px
+  background: linear-gradient(
+    120deg,
+    rgba(0, 237, 100, 0) 0%,
+    rgba(0, 237, 100, 0.35) 45%,
+    rgba(0, 237, 100, 0) 70%
   );
-  background-size: 200% 200%;
-  animation: barberPole 2s linear infinite;
+  background-size: 220% 220%;
+  animation: aiSweep 4s ease-in-out infinite;
+  border-radius: inherit;
+}
+
+.barber-pole::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(0, 237, 100, 0.35) 0%,
+    rgba(0, 237, 100, 0) 60%
+  );
+  animation: aiPulse 5s ease-in-out infinite;
   border-radius: inherit;
 }
 

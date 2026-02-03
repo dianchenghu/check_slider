@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, createContext, useContext, useMemo, u
 import { Background, ReactFlow, ReactFlowProvider, useNodesState, useEdgesState, addEdge, Connection, OnConnectStartParams, Node, useReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import DatabaseSchemaDemo from "./components/DatabaseSchemaDemo";
+import CompactCollectionNode from "./components/CompactCollectionNode";
 import GroupNode from "./components/GroupNode";
 import { GroupingHandler } from "./components/GroupingHandler";
 import { RectangleDrawer } from "./components/RectangleDrawer";
@@ -35,6 +36,7 @@ export const useMode = () => useContext(ModeContext);
 const nodeTypes = {
   databaseSchema: DatabaseSchemaDemo,
   group: GroupNode,
+  collectionCompact: CompactCollectionNode,
 };
 
 // Load schema from JSON file
@@ -58,41 +60,201 @@ function FlowContent() {
   const [rectangleStart, setRectangleStart] = useState<{ x: number; y: number } | null>(null);
   const [rectangleEnd, setRectangleEnd] = useState<{ x: number; y: number } | null>(null);
   const [isRecommendationsPanelOpen, setIsRecommendationsPanelOpen] = useState(false);
+  const [isGroupsOnly, setIsGroupsOnly] = useState(false);
+  const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
   const reactFlowInstance = useReactFlow();
 
-  // Dynamically update node draggable property based on reorder mode
-  // Only override draggable when isReorderMode is true, otherwise preserve node's draggable property
-  // Also sort nodes to ensure group nodes are rendered behind other nodes
-  const nodesWithDraggable = useMemo(() => {
-    const updatedNodes = nodes.map((node) => ({
-      ...node,
-      draggable: isReorderMode ? false : (node.draggable !== undefined ? node.draggable : true),
-    }));
-    
-    // Sort nodes: group nodes first (rendered behind), then other nodes
-    return updatedNodes.sort((a, b) => {
-      const aIsGroup = a.type === "group";
-      const bIsGroup = b.type === "group";
-      if (aIsGroup && !bIsGroup) return -1; // group before non-group
-      if (!aIsGroup && bIsGroup) return 1;  // non-group after group
-      return 0; // maintain original order for same type
+  const viewNodes = useMemo(() => {
+    const compactWidth = 240;
+    const compactHeight = 80;
+    const compactPadding = 16;
+    const groupHeaderHeight = 28;
+    const compactGapX = 20;
+    const compactGapY = 16;
+
+    const groupedNodes = nodes.filter((node) => node.parentId);
+
+    const compactNodes = isGroupsOnly
+      ? nodes.map((node) => {
+          if (node.type === "databaseSchema") {
+            const isExpanded = expandedNodeIds.has(node.id);
+            return {
+              ...node,
+              type: isExpanded ? "databaseSchema" : "collectionCompact",
+              style: isExpanded
+                ? node.style
+                : {
+                    ...(node.style || {}),
+                    width: compactWidth,
+                    height: compactHeight,
+                  },
+            };
+          }
+          return node;
+        })
+      : nodes;
+
+    if (!isGroupsOnly) {
+      const updatedNodes = compactNodes.map((node) => ({
+        ...node,
+        draggable: isReorderMode ? false : (node.draggable !== undefined ? node.draggable : true),
+      }));
+
+      return updatedNodes.sort((a, b) => {
+        const aIsGroup = a.type === "group";
+        const bIsGroup = b.type === "group";
+        if (aIsGroup && !bIsGroup) return -1;
+        if (!aIsGroup && bIsGroup) return 1;
+        return 0;
+      });
+    }
+
+    const compactByGroup = new Map<string, typeof compactNodes>();
+    compactNodes.forEach((node) => {
+      if (!node.parentId) return;
+      const list = compactByGroup.get(node.parentId) || [];
+      list.push(node);
+      compactByGroup.set(node.parentId, list);
     });
-  }, [nodes, isReorderMode]);
+
+    const groupLayouts = new Map<
+      string,
+      {
+        positions: Map<string, { x: number; y: number }>;
+        size: { width: number; height: number };
+      }
+    >();
+
+    const getNodeSize = (node: Node) => {
+      const measuredWidth = node.measured?.width;
+      const measuredHeight = node.measured?.height;
+      if (expandedNodeIds.has(node.id)) {
+        return {
+          width: measuredWidth ?? 360,
+          height: measuredHeight ?? 220,
+        };
+      }
+      return {
+        width: compactWidth,
+        height: compactHeight,
+      };
+    };
+
+    compactByGroup.forEach((children, groupId) => {
+      if (children.length === 0) return;
+      const ordered = [...children].sort((a, b) => {
+        if (a.position.y !== b.position.y) return a.position.y - b.position.y;
+        return a.position.x - b.position.x;
+      });
+      const count = ordered.length;
+      const columns = Math.ceil(Math.sqrt(count));
+      const rows = Math.ceil(count / columns);
+      const colWidths = Array.from({ length: columns }, () => 0);
+      const rowHeights = Array.from({ length: rows }, () => 0);
+
+      ordered.forEach((node, index) => {
+        const col = index % columns;
+        const row = Math.floor(index / columns);
+        const size = getNodeSize(node);
+        colWidths[col] = Math.max(colWidths[col], size.width);
+        rowHeights[row] = Math.max(rowHeights[row], size.height);
+      });
+
+      const colOffsets = colWidths.reduce<number[]>((acc, width, idx) => {
+        const prev = acc[idx - 1] ?? 0;
+        const offset = idx === 0 ? 0 : prev + colWidths[idx - 1] + compactGapX;
+        return [...acc, offset];
+      }, []);
+      const rowOffsets = rowHeights.reduce<number[]>((acc, height, idx) => {
+        const prev = acc[idx - 1] ?? 0;
+        const offset = idx === 0 ? 0 : prev + rowHeights[idx - 1] + compactGapY;
+        return [...acc, offset];
+      }, []);
+
+      const positions = new Map<string, { x: number; y: number }>();
+      ordered.forEach((node, index) => {
+        const col = index % columns;
+        const row = Math.floor(index / columns);
+        positions.set(node.id, {
+          x: compactPadding + colOffsets[col],
+          y: compactPadding + groupHeaderHeight + rowOffsets[row],
+        });
+      });
+
+      const width = compactPadding * 2 + colWidths.reduce((sum, w) => sum + w, 0) + compactGapX * Math.max(0, columns - 1);
+      const height =
+        compactPadding * 2 +
+        groupHeaderHeight +
+        rowHeights.reduce((sum, h) => sum + h, 0) +
+        compactGapY * Math.max(0, rows - 1);
+
+      groupLayouts.set(groupId, { positions, size: { width, height } });
+    });
+
+    const positionedCompactNodes = compactNodes.map((node) => {
+      if (node.parentId) {
+        const layout = groupLayouts.get(node.parentId);
+        const position = layout?.positions.get(node.id);
+        if (position) {
+          return {
+            ...node,
+            position,
+          };
+        }
+      }
+      return node;
+    });
+
+    const updatedNodes = positionedCompactNodes.map((node) => {
+      if (node.type === "group") {
+        const layout = groupLayouts.get(node.id);
+        if (!layout) {
+          return node;
+        }
+        return {
+          ...node,
+          style: {
+            ...(node.style || {}),
+            width: layout.size.width,
+            height: layout.size.height,
+          },
+        };
+      }
+      return node;
+    });
+
+    return updatedNodes
+      .map((node) => ({
+        ...node,
+        draggable: isReorderMode ? false : (node.draggable !== undefined ? node.draggable : true),
+      }))
+      .sort((a, b) => {
+        const aIsGroup = a.type === "group";
+        const bIsGroup = b.type === "group";
+        if (aIsGroup && !bIsGroup) return -1;
+        if (!aIsGroup && bIsGroup) return 1;
+        return 0;
+      });
+  }, [nodes, isGroupsOnly, isReorderMode]);
+
+  const visibleNodeIds = useMemo(() => new Set(viewNodes.map((node) => node.id)), [viewNodes]);
 
   // Dynamically update edge styles based on relationship mode
   const edgesWithStyle = useMemo(() => {
-    return edges.map((edge) => ({
+    const baseEdges = edges;
+
+    return baseEdges.map((edge) => ({
       ...edge,
       type: 'smoothstep',
       style: {
-        stroke: isRelationshipMode ? "#b1b1b7" : "#9ca3af", // Slightly brighter in relationship mode, otherwise gray
-        strokeWidth: 2,
+        stroke: isRelationshipMode ? "#b1b1b7" : "#9ca3af",
+        strokeWidth: isGroupsOnly ? 4 : 2,
         opacity: isRelationshipMode ? 1 : 0.7,
       },
       className: isRelationshipMode ? undefined : "edge-gray",
       animated: false,
     }));
-  }, [edges, isRelationshipMode]);
+  }, [edges, isRelationshipMode, isGroupsOnly, visibleNodeIds]);
 
   const onConnectStart = useCallback((event: MouseEvent | TouchEvent, params: OnConnectStartParams) => {
     if (!isRelationshipMode) return;
@@ -143,12 +305,28 @@ function FlowContent() {
     setIsConnecting(false);
   }, [selectedHandle]);
 
-  const onNodeClick = useCallback(() => {
-    if (isRelationshipMode) {
-      setHasClickedNode(true);
-      setShowInitialTooltip(false);
-    }
-  }, [isRelationshipMode]);
+  const onNodeClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      if (isGroupsOnly && (node.type === "collectionCompact" || node.type === "databaseSchema")) {
+        setExpandedNodeIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(node.id)) {
+            next.delete(node.id);
+          } else {
+            next.add(node.id);
+          }
+          return next;
+        });
+        return;
+      }
+
+      if (isRelationshipMode) {
+        setHasClickedNode(true);
+        setShowInitialTooltip(false);
+      }
+    },
+    [isGroupsOnly, isRelationshipMode],
+  );
 
   // Handle click outside to cancel connection
   useEffect(() => {
@@ -276,9 +454,25 @@ function FlowContent() {
         >
           New Group
         </button>
+        <button
+          onClick={() => {
+            setIsGroupsOnly(!isGroupsOnly);
+            if (isReorderMode) setIsReorderMode(false);
+            if (isRelationshipMode) setIsRelationshipMode(false);
+            if (isHoverMode) setIsHoverMode(false);
+            if (isGroupingMode) setIsGroupingMode(false);
+          }}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            isGroupsOnly
+              ? "bg-primary text-primary-foreground"
+              : "bg-background border border-border hover:bg-muted"
+          }`}
+        >
+          Bird view
+        </button>
       </div>
       <ReactFlow
-        nodes={nodesWithDraggable}
+        nodes={viewNodes}
         edges={edgesWithStyle}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
