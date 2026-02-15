@@ -89,7 +89,6 @@
         { "title": "payment_status", "type": "varchar" },
         { "title": "fulfillment_status", "type": "varchar" },
         { "title": "tracking_number", "type": "varchar" },
-        { "title": "estimated_delivery_date", "type": "date" },
         { "title": "delivered_at", "type": "timestamp" },
         { "title": "cancel_reason", "type": "varchar" },
         { "title": "notes", "type": "varchar" },

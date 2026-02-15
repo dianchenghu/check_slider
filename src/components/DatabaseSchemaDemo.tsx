@@ -1,5 +1,5 @@
-import { memo, useState, useRef, useEffect } from "react";
-import { Position, useReactFlow, useNodeId } from "@xyflow/react";
+import { memo, useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
+import { Position, useReactFlow, useNodeId, useUpdateNodeInternals } from "@xyflow/react";
 import { BaseHandle } from "@/components/base-handle";
 import { useMode } from "../App";
 import { cn } from "@/lib/utils";
@@ -29,9 +29,11 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
   const [hoveredFieldIndex, setHoveredFieldIndex] = useState<number | null>(null);
   const [hoverModeDragIndex, setHoverModeDragIndex] = useState<number | null>(null);
   const editingInputRef = useRef<HTMLInputElement>(null);
+  const lastSchemaKeyRef = useRef<string>("");
   const bodyRef = useRef<HTMLDivElement>(null);
   const nodeId = useNodeId();
-  const { setNodes, getViewport, setViewport } = useReactFlow();
+  const { setNodes, getViewport, setViewport, setEdges } = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
   const panIntervalRef = useRef<number | null>(null);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -273,6 +275,23 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
     }
   }, [editingFieldId]);
 
+  const schemaKey = useMemo(
+    () => data.schema.map((entry) => entry.title).join("|"),
+    [data.schema],
+  );
+
+  useLayoutEffect(() => {
+    if (!nodeId) return;
+    if (lastSchemaKeyRef.current === schemaKey) return;
+    lastSchemaKeyRef.current = schemaKey;
+    updateNodeInternals(nodeId);
+    setEdges((edges) =>
+      edges.map((edge) =>
+        edge.source === nodeId || edge.target === nodeId ? { ...edge } : edge,
+      ),
+    );
+  }, [schemaKey, nodeId, updateNodeInternals, setEdges]);
+
   const handleAddField = (e: React.MouseEvent, insertAfterIndex?: number) => {
     e.stopPropagation();
     setNodes((nodes) =>
@@ -379,7 +398,7 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
 
   return (
     <div onMouseDown={handleNodeMouseDown}>
-      <DatabaseSchemaNode className="p-0 relative overflow-visible" style={{ width: 'calc(100% + 40px)' }}>
+      <DatabaseSchemaNode className="p-0 relative overflow-visible" style={{ width: '100%' }}>
       <DatabaseSchemaNodeHeader>
         <div className="flex items-center gap-2 flex-1">
           {/* 6-dot grid icon (2 columns, 3 rows) */}

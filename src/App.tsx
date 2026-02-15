@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, createContext, useContext, useMemo } from "react";
+import { useState, useCallback, useEffect, createContext, useContext, useMemo, useRef } from "react";
 import { Background, ReactFlow, ReactFlowProvider, useNodesState, useEdgesState, addEdge, Connection, OnConnectStartParams, Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import DatabaseSchemaDemo from "./components/DatabaseSchemaDemo";
@@ -43,7 +43,7 @@ const nodeTypes = {
 const { nodes: defaultNodes, edges: defaultEdges } = loadSchemaFromJSON(schemaData as any);
 
 function FlowContent() {
-  const [nodes, , onNodesChange] = useNodesState(defaultNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState(defaultNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(defaultEdges);
   const [isRelationshipMode, setIsRelationshipMode] = useState(false);
   const [isReorderMode, setIsReorderMode] = useState(false);
@@ -62,6 +62,32 @@ function FlowContent() {
   const [isRecommendationsPanelOpen, setIsRecommendationsPanelOpen] = useState(false);
   const [isGroupsOnly, setIsGroupsOnly] = useState(false);
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
+  const lastOrdersWidthRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isGroupsOnly) return;
+    const raf = requestAnimationFrame(() => {
+      const productsEl = document.querySelector('[data-id="1"]') as HTMLElement | null;
+      if (!productsEl) return;
+      const width = Math.round(productsEl.getBoundingClientRect().width);
+      if (!width || lastOrdersWidthRef.current === width) return;
+      lastOrdersWidthRef.current = width;
+      setNodes((current) =>
+        current.map((node) =>
+          node.id === "4"
+            ? {
+                ...node,
+                style: {
+                  ...(node.style || {}),
+                  width,
+                },
+              }
+            : node,
+        ),
+      );
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [isGroupsOnly, setNodes, nodes.length]);
 
   const viewNodes = useMemo(() => {
     const compactWidth = 240;
