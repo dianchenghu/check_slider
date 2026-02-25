@@ -129,7 +129,7 @@ export function RecommendationsPanel({ isOpen, onClose }: RecommendationsPanelPr
 
   return (
     <div 
-      className="fixed top-0 right-0 h-full w-96 bg-white shadow-2xl z-50 flex flex-col"
+      className="absolute top-0 right-0 h-full w-96 bg-white shadow-2xl z-50 flex flex-col"
       style={{ fontFamily: "'Euclid Circular A', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}
     >
       {/* Header */}

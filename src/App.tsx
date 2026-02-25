@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, createContext, useContext, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Background, ReactFlow, ReactFlowProvider, useNodesState, useEdgesState, addEdge, Connection, OnConnectStartParams, Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import DatabaseSchemaDemo from "./components/DatabaseSchemaDemo";
@@ -63,6 +64,17 @@ function FlowContent() {
   const [isGroupsOnly, setIsGroupsOnly] = useState(false);
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
   const lastOrdersWidthRef = useRef<number | null>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
+
+  const updateMousePosition = useCallback((pos: { x: number; y: number }) => {
+    if (!frameRef.current) {
+      setMousePosition(pos);
+      return;
+    }
+    const rect = frameRef.current.getBoundingClientRect();
+    setMousePosition({ x: pos.x - rect.left, y: pos.y - rect.top });
+  }, []);
 
   useEffect(() => {
     if (isGroupsOnly) return;
@@ -88,6 +100,10 @@ function FlowContent() {
     });
     return () => cancelAnimationFrame(raf);
   }, [isGroupsOnly, setNodes, nodes.length]);
+
+  useEffect(() => {
+    setToolbarTarget(document.getElementById("toolbar-slot"));
+  }, []);
 
   const viewNodes = useMemo(() => {
     const compactWidth = 240;
@@ -290,11 +306,11 @@ function FlowContent() {
     }
     // Set initial mouse position immediately
     if (event instanceof MouseEvent) {
-      setMousePosition({ x: event.clientX, y: event.clientY });
+      updateMousePosition({ x: event.clientX, y: event.clientY });
     } else if (event instanceof TouchEvent && event.touches.length > 0) {
-      setMousePosition({ x: event.touches[0].clientX, y: event.touches[0].clientY });
+      updateMousePosition({ x: event.touches[0].clientX, y: event.touches[0].clientY });
     }
-  }, [isRelationshipMode, setSelectedHandle]);
+  }, [isRelationshipMode, setSelectedHandle, updateMousePosition]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -376,11 +392,11 @@ function FlowContent() {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isConnecting || selectedHandle) {
-        setMousePosition({ x: e.clientX, y: e.clientY });
+        updateMousePosition({ x: e.clientX, y: e.clientY });
       }
       // Update initial tooltip position
       if (showInitialTooltip && isRelationshipMode) {
-        setMousePosition({ x: e.clientX, y: e.clientY });
+        updateMousePosition({ x: e.clientX, y: e.clientY });
       }
     };
 
@@ -391,7 +407,7 @@ function FlowContent() {
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
     };
-  }, [isConnecting, selectedHandle, showInitialTooltip, isRelationshipMode]);
+  }, [isConnecting, selectedHandle, showInitialTooltip, isRelationshipMode, updateMousePosition]);
 
   // Show initial tooltip when relationship mode is enabled
   useEffect(() => {
@@ -414,30 +430,73 @@ function FlowContent() {
 
 
 
-  return (
-    <ModeContext.Provider value={{ isRelationshipMode, isReorderMode, isHoverMode, selectedHandle, setSelectedHandle, isFieldDragging, setIsFieldDragging }}>
-      <div className="absolute top-4 left-4 z-50 flex gap-2">
+  const controls = (
+    <div className="flex items-center justify-between w-full">
+      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5">
         <button
+          type="button"
+          title="Undo"
+          aria-label="Undo"
+          className="h-7 w-7 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-100"
+        >
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M9 5H5l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5 5c4.5 0 8.5 2 8.5 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          title="Redo"
+          aria-label="Redo"
+          className="h-7 w-7 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-100"
+        >
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M11 5h4l-3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M15 5c-4.5 0-8.5 2-8.5 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          title="New"
+          aria-label="New"
+          className="h-7 w-7 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-100"
+        >
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M4 6.5c0-1.1.9-2 2-2h7.5L17 8v5.5c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V6.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+            <path d="M10 8v4M8 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          title="Add relationships"
+          aria-label="Add relationships"
+          className={`h-7 w-7 inline-flex items-center justify-center rounded-md ${
+            isRelationshipMode
+              ? "bg-primary text-primary-foreground"
+              : "text-gray-700 hover:bg-gray-100"
+          }`}
           onClick={() => {
             setIsRelationshipMode(!isRelationshipMode);
             if (isReorderMode) setIsReorderMode(false);
             if (isHoverMode) setIsHoverMode(false);
           }}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            isRelationshipMode
-              ? "bg-primary text-primary-foreground"
-              : "bg-background border border-border hover:bg-muted"
-          }`}
         >
-          Add relationships
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5" />
+            <rect x="11.5" y="11.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M8.5 6.5h3a2 2 0 0 1 2 2v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
         </button>
+      </div>
+      {/* Add relationships button merged into Connect icon */}
         <button
           onClick={() => {
             setIsReorderMode(!isReorderMode);
             if (isRelationshipMode) setIsRelationshipMode(false);
             if (isHoverMode) setIsHoverMode(false);
           }}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
             isReorderMode
               ? "bg-primary text-primary-foreground"
               : "bg-background border border-border hover:bg-muted"
@@ -447,12 +506,29 @@ function FlowContent() {
         </button>
         <button
           onClick={() => {
+            setIsGroupingMode(!isGroupingMode);
+            if (isRelationshipMode) setIsRelationshipMode(false);
+            if (isReorderMode) setIsReorderMode(false);
+            if (isHoverMode) setIsHoverMode(false);
+          }}
+          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+            isGroupingMode
+              ? "bg-primary text-primary-foreground"
+              : "bg-background border border-border hover:bg-muted"
+          }`}
+        >
+          New Group
+        </button>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={() => {
             setIsHoverMode(!isHoverMode);
             if (isRelationshipMode) setIsRelationshipMode(false);
             if (isReorderMode) setIsReorderMode(false);
             if (isGroupingMode) setIsGroupingMode(false);
           }}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
             isHoverMode
               ? "bg-primary text-primary-foreground"
               : "bg-background border border-border hover:bg-muted"
@@ -462,28 +538,13 @@ function FlowContent() {
         </button>
         <button
           onClick={() => {
-            setIsGroupingMode(!isGroupingMode);
-            if (isRelationshipMode) setIsRelationshipMode(false);
-            if (isReorderMode) setIsReorderMode(false);
-            if (isHoverMode) setIsHoverMode(false);
-          }}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            isGroupingMode
-              ? "bg-primary text-primary-foreground"
-              : "bg-background border border-border hover:bg-muted"
-          }`}
-        >
-          New Group
-        </button>
-        <button
-          onClick={() => {
             setIsGroupsOnly(!isGroupsOnly);
             if (isReorderMode) setIsReorderMode(false);
             if (isRelationshipMode) setIsRelationshipMode(false);
             if (isHoverMode) setIsHoverMode(false);
             if (isGroupingMode) setIsGroupingMode(false);
           }}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
             isGroupsOnly
               ? "bg-primary text-primary-foreground"
               : "bg-background border border-border hover:bg-muted"
@@ -492,6 +553,13 @@ function FlowContent() {
           Bird view
         </button>
       </div>
+    </div>
+  );
+
+  return (
+    <ModeContext.Provider value={{ isRelationshipMode, isReorderMode, isHoverMode, selectedHandle, setSelectedHandle, isFieldDragging, setIsFieldDragging }}>
+      <div ref={frameRef} className="relative w-full h-full">
+        {toolbarTarget ? createPortal(controls, toolbarTarget) : controls}
       <ReactFlow
         nodes={viewNodes}
         edges={edgesWithStyle}
@@ -516,14 +584,14 @@ function FlowContent() {
           setIsDrawingRectangle={setIsDrawingRectangle}
           setRectangleStart={setRectangleStart}
           setRectangleEnd={setRectangleEnd}
-          setMousePosition={setMousePosition}
+          setMousePosition={updateMousePosition}
         />
         <GroupingHandler
           isGroupingMode={isGroupingMode}
           setIsGroupingMode={setIsGroupingMode}
           groupCounter={groupCounter}
           setGroupCounter={setGroupCounter}
-          setMousePosition={setMousePosition}
+          setMousePosition={updateMousePosition}
           isDrawingRectangle={isDrawingRectangle}
           setIsDrawingRectangle={setIsDrawingRectangle}
           rectangleStart={rectangleStart}
@@ -534,7 +602,7 @@ function FlowContent() {
       </ReactFlow>
       {showInitialTooltip && isRelationshipMode && !hasClickedNode && (
         <div
-          className="fixed pointer-events-none z-50 bg-black text-white text-sm px-3 py-1.5 rounded shadow-lg whitespace-nowrap"
+          className="absolute pointer-events-none z-50 bg-black text-white text-sm px-3 py-1.5 rounded shadow-lg whitespace-nowrap"
           style={{
             left: `${mousePosition.x + 10}px`,
             top: `${mousePosition.y - 10}px`,
@@ -545,7 +613,7 @@ function FlowContent() {
       )}
       {(isConnecting || selectedHandle) && isRelationshipMode && (
         <div
-          className="fixed pointer-events-none z-50 bg-black text-white text-sm px-3 py-1.5 rounded shadow-lg whitespace-nowrap"
+          className="absolute pointer-events-none z-50 bg-black text-white text-sm px-3 py-1.5 rounded shadow-lg whitespace-nowrap"
           style={{
             left: `${mousePosition.x + 10}px`,
             top: `${mousePosition.y - 10}px`,
@@ -556,7 +624,7 @@ function FlowContent() {
       )}
       {isGroupingMode && !isDrawingRectangle && mousePosition.x > -1000 && mousePosition.y > -1000 && (
         <div
-          className="fixed pointer-events-none z-50 bg-black text-white text-sm px-3 py-1.5 rounded shadow-lg whitespace-nowrap"
+          className="absolute pointer-events-none z-50 bg-black text-white text-sm px-3 py-1.5 rounded shadow-lg whitespace-nowrap"
           style={{
             left: `${mousePosition.x + 10}px`,
             top: `${mousePosition.y - 10}px`,
@@ -567,7 +635,7 @@ function FlowContent() {
       )}
       {/* Info Panel - Bottom Right */}
       <div
-        className="fixed right-4 flex items-center gap-2.5 bg-white border border-gray-300 shadow-lg px-2.5 py-1.5 cursor-pointer hover:shadow-xl transition-shadow"
+        className="absolute right-4 flex items-center gap-2.5 bg-white border border-gray-300 shadow-lg px-2.5 py-1.5 cursor-pointer hover:shadow-xl transition-shadow"
         style={{
           bottom: '40px',
           borderRadius: '100px',
@@ -587,20 +655,52 @@ function FlowContent() {
       </div>
 
       {/* Recommendations Panel */}
-      <RecommendationsPanel
-        isOpen={isRecommendationsPanelOpen}
-        onClose={() => setIsRecommendationsPanelOpen(false)}
-      />
+        <RecommendationsPanel
+          isOpen={isRecommendationsPanelOpen}
+          onClose={() => setIsRecommendationsPanelOpen(false)}
+        />
+      </div>
     </ModeContext.Provider>
   );
 }
 
 function App() {
   return (
-    <div className="h-screen w-screen">
-      <ReactFlowProvider>
-        <FlowContent />
-      </ReactFlowProvider>
+    <div className="h-screen w-screen bg-[#F7F8F7] text-foreground">
+      <div className="h-10 border-b border-gray-200 flex items-center justify-center text-xs text-gray-600">
+        MongoDB Compass Dev
+      </div>
+      <div className="flex h-[calc(100%-40px)]">
+        <aside className="w-60 border-r border-gray-200 bg-[#E5F3ED] flex flex-col">
+          <div className="px-4 py-3 text-sm font-semibold text-gray-800">Compass</div>
+          <div className="px-4 py-2 text-xs text-gray-600">Data Modeling</div>
+          <div className="px-4 py-2 text-xs font-semibold text-gray-700">Connections (4)</div>
+          <div className="mx-4 mb-2 h-8 rounded border border-gray-300 bg-white text-xs flex items-center px-2 text-gray-500">
+            Search connections
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 pb-4 text-xs text-gray-700 space-y-2">
+            <div>compass data</div>
+            <div>NYC</div>
+            <div>Netflix</div>
+            <div>SchemaAdvisor</div>
+            <div>TestDB</div>
+            <div>collections</div>
+            <div>compass_analytics</div>
+            <div>config</div>
+            <div>encryption</div>
+          </div>
+        </aside>
+        <main className="flex-1 flex flex-col">
+          <div className="h-10 border-b border-gray-200 flex items-center px-4">
+            <div id="toolbar-slot" className="flex-1 flex items-center min-w-0" />
+          </div>
+          <div className="flex-1 bg-[#F9FBFA]">
+            <ReactFlowProvider>
+              <FlowContent />
+            </ReactFlowProvider>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

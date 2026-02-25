@@ -224,7 +224,7 @@ export function GroupingHandler({
     <div
       className="pointer-events-none"
       style={{
-        position: 'absolute',
+        position: 'fixed',
         left: `${topLeft.x}px`,
         top: `${topLeft.y}px`,
         width: `${screenWidth}px`,
