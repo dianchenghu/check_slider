@@ -38,7 +38,7 @@ export const DatabaseSchemaNodeBody = ({
   children,
 }: DatabaseSchemaNodeBodyProps) => {
   return (
-    <BaseNodeContent className="p-0">
+    <BaseNodeContent className="p-0 pb-1">
       <table className="border-spacing-y-0 overflow-visible">
         <TableBody className="[&_tr]:border-0 [&_tr:first-child]:pt-2 [&_tr:last-child]:pb-2">{children}</TableBody>
       </table>

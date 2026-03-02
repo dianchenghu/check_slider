@@ -129,8 +129,12 @@ export function GroupingHandler({
     // Calculate group bounds based on node positions and sizes
     const nodeBounds = nodesInGroup.map((n) => {
       const nodeElement = document.querySelector(`[data-id="${n.id}"]`) as HTMLElement;
-      const width = nodeElement?.offsetWidth || 300;
-      const height = nodeElement?.offsetHeight || 200;
+      const domWidth = nodeElement?.offsetWidth || 300;
+      const domHeight = nodeElement?.offsetHeight || 200;
+      const styleWidth = n.style?.width ? Number(n.style.width) : 0;
+      const styleHeight = n.style?.height ? Number(n.style.height) : 0;
+      const width = Math.max(domWidth, styleWidth || 0) || domWidth;
+      const height = Math.max(domHeight, styleHeight || 0) || domHeight;
       return {
         left: n.position!.x,
         right: n.position!.x + width,

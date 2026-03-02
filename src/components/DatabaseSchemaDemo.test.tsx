@@ -5,11 +5,16 @@ import DatabaseSchemaDemo from './DatabaseSchemaDemo'
 
 // Mock the useMode hook
 const mockSetSelectedHandle = vi.fn()
+const mockPushHistory = vi.fn()
 const mockModeContext = {
   isRelationshipMode: false,
   isReorderMode: false,
+  isHoverMode: false,
   selectedHandle: null,
   setSelectedHandle: mockSetSelectedHandle,
+  isFieldDragging: false,
+  setIsFieldDragging: vi.fn(),
+  pushHistory: mockPushHistory,
 }
 
 // Mock the App context
@@ -24,6 +29,11 @@ vi.mock('@xyflow/react', async () => {
     ...actual,
     useReactFlow: () => ({
       setNodes: vi.fn(),
+      getNodes: () => [],
+      getEdges: () => [],
+      getViewport: () => ({}),
+      setViewport: vi.fn(),
+      setEdges: vi.fn(),
     }),
     useNodeId: () => 'test-node-id',
   }
@@ -63,10 +73,11 @@ describe('DatabaseSchemaDemo', () => {
 
   it('should render field types', () => {
     renderComponent()
-    expect(screen.getByText('uuid')).toBeInTheDocument()
-    // There are multiple varchar fields, so use getAllByText
-    const varcharFields = screen.getAllByText('varchar')
-    expect(varcharFields.length).toBeGreaterThan(0)
+    // uuid is displayed as objectId
+    expect(screen.getByText('objectId')).toBeInTheDocument()
+    // varchar is displayed as string
+    const stringFields = screen.getAllByText('string')
+    expect(stringFields.length).toBeGreaterThan(0)
   })
 
   it('should show add field button', () => {

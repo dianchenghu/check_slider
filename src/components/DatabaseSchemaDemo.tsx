@@ -10,16 +10,21 @@ import {
   DatabaseSchemaTableRow,
   DatabaseSchemaTableCell,
 } from "@/components/database-schema-node";
+import {
+  type SchemaField,
+  flattenSchema,
+  updateFieldTitleByPath,
+} from "@/lib/schemaLoader";
 
 export type DatabaseSchemaNodeData = {
   data: {
     label: string;
-    schema: { title: string; type: string }[];
+    schema: SchemaField[];
   };
 };
 
 const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
-  const { isRelationshipMode, isReorderMode, isHoverMode, selectedHandle, setSelectedHandle, isFieldDragging, setIsFieldDragging } = useMode();
+  const { isRelationshipMode, isReorderMode, isHoverMode, selectedHandle, setSelectedHandle, isFieldDragging, setIsFieldDragging, pushHistory } = useMode();
   const [hoverSide, setHoverSide] = useState<"left" | "right" | null>(null);
   const [hoveredHandleId, setHoveredHandleId] = useState<string | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -28,11 +33,12 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
   const [editingValue, setEditingValue] = useState<string>("");
   const [hoveredFieldIndex, setHoveredFieldIndex] = useState<number | null>(null);
   const [hoverModeDragIndex, setHoverModeDragIndex] = useState<number | null>(null);
+  const [collapsedPathsByNode, setCollapsedPathsByNode] = useState<Record<string, Set<string>>>({});
   const editingInputRef = useRef<HTMLInputElement>(null);
   const lastSchemaKeyRef = useRef<string>("");
   const bodyRef = useRef<HTMLDivElement>(null);
   const nodeId = useNodeId();
-  const { setNodes, getViewport, setViewport, setEdges } = useReactFlow();
+  const { setNodes, getNodes, getEdges, getViewport, setViewport, setEdges } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const panIntervalRef = useRef<number | null>(null);
 
@@ -121,21 +127,18 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
   }, [isFieldDragging, getViewport, setViewport]);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
-    // Check if we're in a valid drag state
+    const row = flattenedRows[index];
+    const isReorderable = row?.topLevelIndex !== undefined;
     const isInReorderState = isReorderMode || hoverModeDragIndex === index;
-    if (!isInReorderState) {
+    if (!isInReorderState || !isReorderable) {
       e.preventDefault();
       e.stopPropagation();
       return;
     }
-    // Ensure canvas is locked (should already be locked, but ensure it)
     setIsFieldDragging(true);
-    // Stop propagation to prevent React Flow from handling this drag
     e.stopPropagation();
-    // Don't prevent default - we need the drag to work
     e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", ""); // Required by some browsers
-    // If in hover mode reorder state, use hoverModeDragIndex, otherwise use the index
+    e.dataTransfer.setData("text/plain", "");
     if (hoverModeDragIndex !== null) {
       setDraggedIndex(hoverModeDragIndex);
     } else {
@@ -175,7 +178,12 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
       return;
     }
 
-    if (currentDragIndex === dropIndex) {
+    const draggedRow = visibleRows[currentDragIndex];
+    const dropRow = visibleRows[dropIndex];
+    const draggedTopLevel = draggedRow?.topLevelIndex;
+    const dropTopLevel = dropRow?.topLevelIndex ?? dropRow?.parentTopLevelIndex ?? 0;
+
+    if (draggedTopLevel === undefined || draggedTopLevel === dropTopLevel) {
       setDraggedIndex(null);
       setDragOverIndex(null);
       setHoverModeDragIndex(null);
@@ -183,16 +191,14 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
     }
 
     e.preventDefault();
-    e.stopPropagation(); // Prevent triggering React Flow node drag
-    
-    // Update node data
+    e.stopPropagation();
+
     setNodes((nodes) =>
       nodes.map((node) => {
         if (node.id === nodeId) {
           const newSchema = [...data.schema];
-          const [draggedItem] = newSchema.splice(currentDragIndex, 1);
-          // Calculate correct insert position
-          const insertIndex = dropIndex > currentDragIndex ? dropIndex : dropIndex;
+          const [draggedItem] = newSchema.splice(draggedTopLevel, 1);
+          const insertIndex = dropTopLevel > draggedTopLevel ? dropTopLevel - 1 : dropTopLevel;
           newSchema.splice(insertIndex, 0, draggedItem);
           return {
             ...node,
@@ -233,14 +239,13 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
 
   const handleFieldNameBlur = () => {
     if (editingFieldId && editingValue.trim() !== "") {
-      // Update node data with new field name
       setNodes((nodes) =>
         nodes.map((node) => {
           if (node.id === nodeId) {
-            const newSchema = data.schema.map((entry) =>
-              entry.title === editingFieldId
-                ? { ...entry, title: editingValue.trim() }
-                : entry
+            const newSchema = updateFieldTitleByPath(
+              data.schema,
+              editingFieldId,
+              editingValue.trim()
             );
             return {
               ...node,
@@ -275,9 +280,52 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
     }
   }, [editingFieldId]);
 
+  const flattenedRows = useMemo(() => flattenSchema(data.schema), [data.schema]);
+
+  const nodeCollapsed = collapsedPathsByNode[nodeId || ""] ?? new Set<string>();
+
+  const visibleRows = useMemo(
+    () =>
+      flattenedRows.filter(
+        (row) => !row.isNested || !nodeCollapsed.has(row.parentPath!)
+      ),
+    [flattenedRows, nodeCollapsed]
+  );
+
+  const toggleCollapse = (path: string) => {
+    const node = nodeId || "";
+    setCollapsedPathsByNode((prev) => {
+      const current = prev[node] ?? new Set<string>();
+      const next = new Set(current);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return { ...prev, [node]: next };
+    });
+  };
+
+  const objectPaths = useMemo(
+    () => flattenedRows.filter((r) => r.type === "object").map((r) => r.path),
+    [flattenedRows]
+  );
+
+  const allCollapsed =
+    objectPaths.length > 0 &&
+    objectPaths.every((p) => nodeCollapsed.has(p));
+
+  const toggleCollapseAll = () => {
+    const node = nodeId || "";
+    setCollapsedPathsByNode((prev) => {
+      const next = allCollapsed ? new Set<string>() : new Set(objectPaths);
+      return { ...prev, [node]: next };
+    });
+  };
+
   const schemaKey = useMemo(
-    () => data.schema.map((entry) => entry.title).join("|"),
-    [data.schema],
+    () => visibleRows.map((r) => r.path).join("|"),
+    [visibleRows],
   );
 
   useLayoutEffect(() => {
@@ -294,38 +342,41 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
 
   const handleAddField = (e: React.MouseEvent, insertAfterIndex?: number) => {
     e.stopPropagation();
-    setNodes((nodes) =>
-      nodes.map((node) => {
-        if (node.id === nodeId) {
-          const newField = {
-            title: `field_${data.schema.length + 1}`,
-            type: "varchar",
+    const newField: SchemaField = {
+      title: `field_${data.schema.length + 1}`,
+      type: "varchar",
+    };
+    const nodes = getNodes();
+    const edges = getEdges();
+    const newNodes = nodes.map((node) => {
+      if (node.id === nodeId) {
+        if (insertAfterIndex !== undefined) {
+          const row = visibleRows[insertAfterIndex];
+          const afterTopLevel =
+            row?.topLevelIndex ?? row?.parentTopLevelIndex ?? -1;
+          const newSchema = [...data.schema];
+          newSchema.splice(afterTopLevel + 1, 0, newField);
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              schema: newSchema,
+            },
           };
-          if (insertAfterIndex !== undefined) {
-            // Insert after the specified index
-            const newSchema = [...data.schema];
-            newSchema.splice(insertAfterIndex + 1, 0, newField);
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                schema: newSchema,
-              },
-            };
-          } else {
-            // Add to the end
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                schema: [...data.schema, newField],
-              },
-            };
-          }
+        } else {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              schema: [...data.schema, newField],
+            },
+          };
         }
-        return node;
-      })
-    );
+      }
+      return node;
+    });
+    pushHistory(newNodes, edges);
+    setNodes(newNodes);
   };
 
   const handleHoverModeReorderClick = (index: number, e: React.MouseEvent) => {
@@ -398,7 +449,7 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
 
   return (
     <div onMouseDown={handleNodeMouseDown}>
-      <DatabaseSchemaNode className="p-0 relative overflow-visible" style={{ width: '100%' }}>
+      <DatabaseSchemaNode className="p-0 relative overflow-visible" style={{ width: '100%', minWidth: 280 }}>
       <DatabaseSchemaNodeHeader>
         <div className="flex items-center gap-2 flex-1">
           {/* 6-dot grid icon (2 columns, 3 rows) */}
@@ -437,6 +488,27 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
             />
           </svg>
         </button>
+        {objectPaths.length > 0 && (
+          <button
+            onClick={toggleCollapseAll}
+            className="ml-1 p-0.5 hover:bg-gray-200 rounded transition-colors flex-shrink-0 text-gray-600"
+            title={allCollapsed ? "Expand all" : "Collapse all"}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={cn("transition-transform", allCollapsed && "rotate-180")}
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+        )}
       </DatabaseSchemaNodeHeader>
       <div
         ref={bodyRef}
@@ -444,21 +516,22 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
         onMouseLeave={handleMouseLeave}
       >
         <DatabaseSchemaNodeBody>
-          {data.schema.map((entry, index) => (
+          {visibleRows.map((entry, index) => {
+            const isReorderable = entry.topLevelIndex !== undefined;
+            const isLeafField = entry.type !== "object";
+            return (
             <DatabaseSchemaTableRow
-              key={`${entry.title}-${index}`}
-              draggable={isReorderMode || hoverModeDragIndex === index}
+              key={`${entry.path}-${index}`}
+              draggable={(isReorderMode || hoverModeDragIndex === index) && isReorderable}
               onDragStart={(e: React.DragEvent) => {
-                // Check if this row should be draggable
-                const shouldBeDraggable = isReorderMode || hoverModeDragIndex === index;
+                const shouldBeDraggable =
+                  (isReorderMode || hoverModeDragIndex === index) && isReorderable;
                 if (!shouldBeDraggable) {
                   e.preventDefault();
                   e.stopPropagation();
                   return;
                 }
-                // Ensure canvas is locked immediately before starting drag
                 setIsFieldDragging(true);
-                // Stop propagation to prevent canvas drag, but don't prevent default to allow drag
                 e.stopPropagation();
                 handleDragStart(e, index);
               }}
@@ -512,7 +585,7 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
                 draggedIndex === index ? "opacity-50" : ""
               } ${dragOverIndex === index ? "border-t-2 border-blue-500" : ""} ${
                 hoverModeDragIndex === index ? "bg-blue-100" : ""
-              } ${index === 0 ? "pt-2" : ""} ${index === data.schema.length - 1 ? "pb-2" : ""}`}
+              } ${index === 0 ? "pt-2" : ""} ${index === visibleRows.length - 1 ? "pb-2" : ""}`}
             >
               {/* Wrapper td for absolute positioned elements - spans all columns */}
               <td 
@@ -520,10 +593,22 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
                 className="absolute inset-0 p-0 pointer-events-none" 
                 style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
               >
+                {/* Vertical line for nested fields - aligns with object field left edge, starts at first nested row top */}
+                {entry.isNested && (
+                  <div
+                    className="absolute w-px bg-gray-600 pointer-events-none"
+                    style={{
+                      left: 24,
+                      top: 0,
+                      height: "100%",
+                    }}
+                  />
+                )}
                 {/* Hover mode buttons */}
                 {isHoverMode && hoveredFieldIndex === index && hoverModeDragIndex !== index && (
                   <>
-                    {/* Reorder button on the left */}
+                    {/* Reorder button on the left - only for top-level fields */}
+                    {isReorderable && (
                     <button
                       onClick={(e) => {
                         handleHoverModeReorderClick(index, e);
@@ -546,6 +631,7 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
                         />
                       </svg>
                     </button>
+                    )}
                     {/* Add button on the right */}
                     <button
                       onClick={(e) => {
@@ -598,11 +684,12 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
                     </svg>
                   </button>
                 )}
-                {/* Left handle - positioned on the left edge */}
+                {/* Left handle - only for leaf fields */}
+                {isLeafField && (
                 <div
                   className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-opacity duration-200 z-50 ${
                     isRelationshipMode
-                      ? selectedHandle?.nodeId === nodeId && selectedHandle?.handleId === entry.title && selectedHandle?.type === "target"
+                      ? selectedHandle?.nodeId === nodeId && selectedHandle?.handleId === entry.path && selectedHandle?.type === "target"
                         ? "opacity-100 pointer-events-auto"
                         : hoverSide === "left"
                         ? "opacity-100 pointer-events-auto"
@@ -611,41 +698,39 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
                   }`}
                   style={{ left: 0 }}
                   onMouseEnter={() => {
-                    if (isRelationshipMode) {
-                      setHoveredHandleId(entry.title);
-                    }
+                    if (isRelationshipMode) setHoveredHandleId(entry.path);
                   }}
                   onMouseLeave={() => {
-                    if (isRelationshipMode) {
-                      setHoveredHandleId(null);
-                    }
+                    if (isRelationshipMode) setHoveredHandleId(null);
                   }}
                   onMouseDown={(e) => {
                     if (isRelationshipMode) {
                       e.stopPropagation();
-                      setSelectedHandle({ nodeId: nodeId || "", handleId: entry.title, type: "target" });
+                      setSelectedHandle({ nodeId: nodeId || "", handleId: entry.path, type: "target" });
                     }
                   }}
                 >
                   <BaseHandle
-                    id={entry.title}
+                    id={entry.path}
                     type="target"
                     position={Position.Left}
                     className={cn(
                       "z-50",
-                      selectedHandle?.nodeId === nodeId && selectedHandle?.handleId === entry.title 
+                      selectedHandle?.nodeId === nodeId && selectedHandle?.handleId === entry.path 
                         ? "!border-blue-600 !bg-blue-600 !h-[11px] !w-[11px]" 
-                        : hoveredHandleId === entry.title 
+                        : hoveredHandleId === entry.path 
                         ? "!border-blue-600 !h-[11px] !w-[11px]" 
                         : ""
                     )}
                   />
                 </div>
-                {/* Right handle - positioned on the right edge */}
+                )}
+                {/* Right handle - only for leaf fields */}
+                {isLeafField && (
                 <div
                   className={`absolute top-1/2 -translate-y-1/2 transition-opacity duration-200 z-50 ${
                     isRelationshipMode
-                      ? selectedHandle?.nodeId === nodeId && selectedHandle?.handleId === entry.title && selectedHandle?.type === "source"
+                      ? selectedHandle?.nodeId === nodeId && selectedHandle?.handleId === entry.path && selectedHandle?.type === "source"
                         ? "opacity-100 pointer-events-auto"
                         : hoverSide === "right"
                         ? "opacity-100 pointer-events-auto"
@@ -654,40 +739,37 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
                   }`}
                   style={{ right: '-2px' }}
                   onMouseEnter={() => {
-                    if (isRelationshipMode) {
-                      setHoveredHandleId(entry.title);
-                    }
+                    if (isRelationshipMode) setHoveredHandleId(entry.path);
                   }}
                   onMouseLeave={() => {
-                    if (isRelationshipMode) {
-                      setHoveredHandleId(null);
-                    }
+                    if (isRelationshipMode) setHoveredHandleId(null);
                   }}
                   onMouseDown={(e) => {
                     if (isRelationshipMode) {
                       e.stopPropagation();
-                      setSelectedHandle({ nodeId: nodeId || "", handleId: entry.title, type: "source" });
+                      setSelectedHandle({ nodeId: nodeId || "", handleId: entry.path, type: "source" });
                     }
                   }}
                 >
                   <BaseHandle
-                    id={entry.title}
+                    id={entry.path}
                     type="source"
                     position={Position.Right}
                     className={cn(
                       "z-50",
-                      selectedHandle?.nodeId === nodeId && selectedHandle?.handleId === entry.title 
+                      selectedHandle?.nodeId === nodeId && selectedHandle?.handleId === entry.path 
                         ? "!border-blue-600 !bg-blue-600 !h-[11px] !w-[11px]" 
-                        : hoveredHandleId === entry.title 
+                        : hoveredHandleId === entry.path 
                         ? "!border-blue-600 !h-[11px] !w-[11px]" 
                         : ""
                     )}
                   />
                 </div>
+                )}
               </td>
-              <DatabaseSchemaTableCell className={`pl-[24px] pr-4 py-[3.84px] ${index === 0 ? "!pt-2" : ""} ${index === data.schema.length - 1 ? "!pb-2" : ""}`}>
+              <DatabaseSchemaTableCell className={`pr-4 py-[3.84px] ${entry.isNested ? "pl-[40px]" : "pl-[24px]"} ${index === 0 ? "!pt-2" : ""} ${index === visibleRows.length - 1 ? "!pb-2" : ""}`}>
                 <div className="relative flex items-center flex-row gap-2">
-                  {isReorderMode && (
+                  {isReorderMode && isReorderable && (
                     <div 
                       className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
                       onMouseDown={(e) => e.stopPropagation()}
@@ -709,7 +791,7 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
                     </div>
                   )}
                   {/* Show reorder icon in cell when in hover mode reorder state */}
-                  {isHoverMode && hoverModeDragIndex === index && (
+                  {isHoverMode && hoverModeDragIndex === index && isReorderable && (
                     <div 
                       className="cursor-grab active:cursor-grabbing text-gray-600 flex-shrink-0 reorder-icon"
                       onMouseDown={(e) => e.stopPropagation()}
@@ -730,7 +812,7 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
                       </svg>
                     </div>
                   )}
-                  {editingFieldId === entry.title ? (
+                  {editingFieldId === entry.path ? (
                     <input
                       ref={editingInputRef}
                       type="text"
@@ -746,7 +828,7 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
                       className="text-gray-800 pl-0 pr-2 cursor-text"
                       onDoubleClick={(e) => {
                         e.stopPropagation();
-                        handleFieldNameDoubleClick(entry.title);
+                        handleFieldNameDoubleClick(entry.path);
                       }}
                     >
                       {entry.title}
@@ -754,19 +836,40 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
                   )}
                 </div>
               </DatabaseSchemaTableCell>
-              <DatabaseSchemaTableCell className={`pr-3 py-[3.84px] ${index === 0 ? "!pt-2" : ""} ${index === data.schema.length - 1 ? "!pb-2" : ""}`}>
-                <div className="relative flex items-center justify-end">
+              <DatabaseSchemaTableCell className={`pr-3 py-[3.84px] ${index === 0 ? "!pt-2" : ""} ${index === visibleRows.length - 1 ? "!pb-2" : ""}`}>
+                <div className="relative flex items-center justify-end gap-1">
                   <label className={`text-gray-500 text-right transition-opacity ${isHoverMode && hoveredFieldIndex === index ? "opacity-0" : "opacity-100"}`}>
-                    {entry.title === "id" 
-                      ? "objectId" 
-                      : (["price", "quantity", "capacity"].includes(entry.title) 
-                          ? "int" 
-                          : "string")}
+                    {entry.type === "uuid" ? "objectId" : entry.type === "varchar" ? "string" : entry.type}
                   </label>
+                  {entry.type === "object" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleCollapse(entry.path);
+                      }}
+                      className="p-0.5 hover:bg-gray-200 rounded transition-colors flex-shrink-0 text-gray-600 pointer-events-auto"
+                      title={nodeCollapsed.has(entry.path) ? "Expand" : "Collapse"}
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={cn("transition-transform", nodeCollapsed.has(entry.path) && "rotate-180")}
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </DatabaseSchemaTableCell>
             </DatabaseSchemaTableRow>
-          ))}
+            );
+          })}
         </DatabaseSchemaNodeBody>
       </div>
     </DatabaseSchemaNode>

@@ -65,12 +65,19 @@ const GroupNode = memo(({ data }: { data: GroupNodeData }) => {
   const handleConfirmDelete = () => {
     // Remove group node and ungroup the nodes
     setNodes((nodes) => {
+      const groupNode = nodes.find((n) => n.id === nodeId);
+      const groupPos = groupNode?.position ?? { x: 0, y: 0 };
+
       const updatedNodes = nodes.filter((node) => node.id !== nodeId);
-      // Make grouped nodes draggable again
+      // Convert child positions from relative to absolute and remove parentId
       return updatedNodes.map((node) => {
-        if (data.nodeIds.includes(node.id)) {
+        if (data.nodeIds.includes(node.id) && node.position) {
           return {
             ...node,
+            position: {
+              x: groupPos.x + node.position.x,
+              y: groupPos.y + node.position.y,
+            },
             parentId: undefined,
             extent: undefined,
           };

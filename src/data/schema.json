@@ -6,7 +6,15 @@
       "position": { "x": 0, "y": 0 },
       "schema": [
         { "title": "id", "type": "uuid" },
-        { "title": "name", "type": "varchar" },
+        {
+          "title": "name",
+          "type": "object",
+          "fields": [
+            { "title": "first_name", "type": "varchar" },
+            { "title": "middle_name", "type": "varchar" },
+            { "title": "last_name", "type": "varchar" }
+          ]
+        },
         { "title": "description", "type": "varchar" },
         { "title": "warehouse_id", "type": "uuid" },
         { "title": "supplier_id", "type": "uuid" },
@@ -30,7 +38,7 @@
         { "title": "is_featured", "type": "boolean" },
         { "title": "rating_avg", "type": "numeric" },
         { "title": "rating_count", "type": "int4" },
-        { "title": "tags", "type": "varchar[]" },
+        { "title": "tags", "type": "[]" },
         { "title": "image_url", "type": "varchar" },
         { "title": "thumbnail_url", "type": "varchar" },
         { "title": "min_order_qty", "type": "int4" },
@@ -50,9 +58,25 @@
       "position": { "x": 350, "y": -100 },
       "schema": [
         { "title": "id", "type": "uuid" },
-        { "title": "name", "type": "varchar" },
+        {
+          "title": "name",
+          "type": "object",
+          "fields": [
+            { "title": "first_name", "type": "varchar" },
+            { "title": "middle_name", "type": "varchar" },
+            { "title": "last_name", "type": "varchar" }
+          ]
+        },
         { "title": "address", "type": "varchar" },
-        { "title": "capacity", "type": "int4" }
+        {
+          "title": "capacity",
+          "type": "object",
+          "fields": [
+            { "title": "total", "type": "int4" },
+            { "title": "used", "type": "int4" },
+            { "title": "unit", "type": "varchar" }
+          ]
+        }
       ]
     },
     {
@@ -61,7 +85,15 @@
       "position": { "x": 350, "y": 200 },
       "schema": [
         { "title": "id", "type": "uuid" },
-        { "title": "name", "type": "varchar" },
+        {
+          "title": "name",
+          "type": "object",
+          "fields": [
+            { "title": "first_name", "type": "varchar" },
+            { "title": "middle_name", "type": "varchar" },
+            { "title": "last_name", "type": "varchar" }
+          ]
+        },
         { "title": "description", "type": "varchar" },
         { "title": "country", "type": "varchar" }
       ]
@@ -101,7 +133,15 @@
       "position": { "x": 1050, "y": 0 },
       "schema": [
         { "title": "id", "type": "uuid" },
-        { "title": "name", "type": "varchar" },
+        {
+          "title": "name",
+          "type": "object",
+          "fields": [
+            { "title": "first_name", "type": "varchar" },
+            { "title": "middle_name", "type": "varchar" },
+            { "title": "last_name", "type": "varchar" }
+          ]
+        },
         { "title": "email", "type": "varchar" },
         { "title": "phone", "type": "varchar" },
         { "title": "address", "type": "varchar" }
@@ -125,7 +165,15 @@
       "position": { "x": 350, "y": 450 },
       "schema": [
         { "title": "id", "type": "uuid" },
-        { "title": "name", "type": "varchar" },
+        {
+          "title": "name",
+          "type": "object",
+          "fields": [
+            { "title": "first_name", "type": "varchar" },
+            { "title": "middle_name", "type": "varchar" },
+            { "title": "last_name", "type": "varchar" }
+          ]
+        },
         { "title": "description", "type": "varchar" },
         { "title": "parent_id", "type": "uuid" }
       ]

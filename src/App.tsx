@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, createContext, useContext, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Background, ReactFlow, ReactFlowProvider, useNodesState, useEdgesState, addEdge, Connection, OnConnectStartParams, Node } from "@xyflow/react";
+import { Background, ReactFlow, ReactFlowProvider, useNodesState, useEdgesState, addEdge, Connection, OnConnectStartParams, Node, Edge } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import DatabaseSchemaDemo from "./components/DatabaseSchemaDemo";
 import CompactCollectionNode from "./components/CompactCollectionNode";
@@ -20,6 +20,7 @@ interface ModeContextType {
   setSelectedHandle: (handle: { nodeId: string; handleId: string; type: "target" | "source" } | null) => void;
   isFieldDragging: boolean;
   setIsFieldDragging: (isDragging: boolean) => void;
+  pushHistory: (nodes: Node[], edges: Edge[]) => void;
 }
 
 const ModeContext = createContext<ModeContextType>({
@@ -30,6 +31,7 @@ const ModeContext = createContext<ModeContextType>({
   setSelectedHandle: () => {},
   isFieldDragging: false,
   setIsFieldDragging: () => {},
+  pushHistory: () => {},
 });
 
 export const useMode = () => useContext(ModeContext);
@@ -66,6 +68,14 @@ function FlowContent() {
   const lastOrdersWidthRef = useRef<number | null>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
+  const [showAddCollectionsMenu, setShowAddCollectionsMenu] = useState(false);
+  const [showSelectFromDb, setShowSelectFromDb] = useState(false);
+  const addCollectionsMenuRef = useRef<HTMLDivElement>(null);
+
+  const historyRef = useRef<{ nodes: Node[]; edges: Edge[] }[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isRestoringRef = useRef(false);
+  const nodeIdCounterRef = useRef(100);
 
   const updateMousePosition = useCallback((pos: { x: number; y: number }) => {
     if (!frameRef.current) {
@@ -84,8 +94,10 @@ function FlowContent() {
       const width = Math.round(productsEl.getBoundingClientRect().width);
       if (!width || lastOrdersWidthRef.current === width) return;
       lastOrdersWidthRef.current = width;
-      setNodes((current) =>
-        current.map((node) =>
+      setNodes((current) => {
+        const ordersNode = current.find((n) => n.id === "4");
+        const parentId = ordersNode?.parentId;
+        let updated = current.map((node) =>
           node.id === "4"
             ? {
                 ...node,
@@ -95,8 +107,29 @@ function FlowContent() {
                 },
               }
             : node,
-        ),
-      );
+        );
+        if (parentId) {
+          const groupNode = updated.find((n) => n.id === parentId);
+          if (groupNode?.style) {
+            const groupWidth = Number(groupNode.style.width) || 0;
+            const minGroupWidth = width + 120;
+            if (groupWidth < minGroupWidth) {
+              updated = updated.map((node) =>
+                node.id === parentId
+                  ? {
+                      ...node,
+                      style: {
+                        ...(node.style || {}),
+                        width: minGroupWidth,
+                      },
+                    }
+                  : node,
+              );
+            }
+          }
+        }
+        return updated;
+      });
     });
     return () => cancelAnimationFrame(raf);
   }, [isGroupsOnly, setNodes, nodes.length]);
@@ -104,6 +137,129 @@ function FlowContent() {
   useEffect(() => {
     setToolbarTarget(document.getElementById("toolbar-slot"));
   }, []);
+
+  const pushHistory = useCallback(
+    (newNodes: Node[], newEdges: Edge[]) => {
+      if (isRestoringRef.current) return;
+      const snapshot = {
+        nodes: JSON.parse(JSON.stringify(newNodes)),
+        edges: JSON.parse(JSON.stringify(newEdges)),
+      };
+      historyRef.current = historyRef.current.slice(0, historyIndex + 1);
+      historyRef.current.push(snapshot);
+      if (historyRef.current.length > 50) {
+        historyRef.current.shift();
+        setHistoryIndex(49);
+      } else {
+        setHistoryIndex(historyRef.current.length - 1);
+      }
+    },
+    [historyIndex]
+  );
+
+  useEffect(() => {
+    if (historyRef.current.length === 0) {
+      const snapshot = {
+        nodes: JSON.parse(JSON.stringify(nodes)),
+        edges: JSON.parse(JSON.stringify(edges)),
+      };
+      historyRef.current = [snapshot];
+      setHistoryIndex(0);
+    }
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (historyIndex <= 0) return;
+    const newIndex = historyIndex - 1;
+    const snapshot = historyRef.current[newIndex];
+    isRestoringRef.current = true;
+    setNodes(snapshot.nodes);
+    setEdges(snapshot.edges);
+    setHistoryIndex(newIndex);
+    requestAnimationFrame(() => {
+      isRestoringRef.current = false;
+    });
+  }, [setNodes, setEdges, historyIndex]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex >= historyRef.current.length - 1) return;
+    const newIndex = historyIndex + 1;
+    const snapshot = historyRef.current[newIndex];
+    isRestoringRef.current = true;
+    setNodes(snapshot.nodes);
+    setEdges(snapshot.edges);
+    setHistoryIndex(newIndex);
+    requestAnimationFrame(() => {
+      isRestoringRef.current = false;
+    });
+  }, [setNodes, setEdges, historyIndex]);
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < historyRef.current.length - 1;
+
+  const addNewCollection = useCallback(() => {
+    const newId = String(nodeIdCounterRef.current++);
+    const maxX = Math.max(0, ...nodes.map((n) => n.position.x));
+    const maxY = Math.max(0, ...nodes.map((n) => n.position.y));
+    const newNode: Node = {
+      id: newId,
+      type: "databaseSchema",
+      position: { x: maxX + 100, y: maxY },
+      data: {
+        label: `Collection_${newId}`,
+        schema: [{ title: "id", type: "uuid" }],
+      },
+    };
+    const newNodes = [...nodes, newNode];
+    pushHistory(newNodes, edges);
+    setNodes(newNodes);
+    setShowAddCollectionsMenu(false);
+    setShowSelectFromDb(false);
+  }, [nodes, edges, setNodes, pushHistory]);
+
+  const addCollectionFromDatabase = useCallback(
+    (table: { id: string; label: string; position: { x: number; y: number }; schema: unknown[] }) => {
+      const existingIds = new Set(nodes.map((n) => n.id));
+      let newId = table.id;
+      if (existingIds.has(newId)) {
+        newId = String(nodeIdCounterRef.current++);
+      }
+      const maxX = Math.max(0, ...nodes.map((n) => n.position.x));
+      const maxY = Math.max(0, ...nodes.map((n) => n.position.y));
+      const newNode: Node = {
+        id: newId,
+        type: "databaseSchema",
+        position: { x: maxX + 100, y: maxY },
+        data: {
+          label: table.label,
+          schema: table.schema,
+        },
+      };
+      const newNodes = [...nodes, newNode];
+      pushHistory(newNodes, edges);
+      setNodes(newNodes);
+      setShowAddCollectionsMenu(false);
+      setShowSelectFromDb(false);
+    },
+    [nodes, edges, setNodes, pushHistory]
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        addCollectionsMenuRef.current &&
+        !addCollectionsMenuRef.current.contains(target)
+      ) {
+        setShowAddCollectionsMenu(false);
+        setShowSelectFromDb(false);
+      }
+    };
+    if (showAddCollectionsMenu) {
+      document.addEventListener("click", handleClickOutside);
+    }
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [showAddCollectionsMenu]);
 
   const viewNodes = useMemo(() => {
     const compactWidth = 240;
@@ -321,6 +477,7 @@ function FlowContent() {
         ...edge,
         type: 'smoothstep' as const,
       }));
+      pushHistory(nodes, edgesWithType);
       setEdges(edgesWithType);
       // Exit add relationship mode after successfully adding a relationship
       setIsRelationshipMode(false);
@@ -329,7 +486,7 @@ function FlowContent() {
       setHasClickedNode(false);
       setShowInitialTooltip(false);
     },
-    [isRelationshipMode, edges, setEdges]
+    [isRelationshipMode, edges, nodes, setEdges, pushHistory]
   );
 
   const onConnectEnd = useCallback(() => {
@@ -438,7 +595,9 @@ function FlowContent() {
           type="button"
           title="Undo"
           aria-label="Undo"
-          className="h-7 w-7 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-100"
+          onClick={handleUndo}
+          disabled={!canUndo}
+          className="h-7 w-7 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <path d="M9 5H5l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -449,24 +608,71 @@ function FlowContent() {
           type="button"
           title="Redo"
           aria-label="Redo"
-          className="h-7 w-7 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-100"
+          onClick={handleRedo}
+          disabled={!canRedo}
+          className="h-7 w-7 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <path d="M11 5h4l-3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M15 5c-4.5 0-8.5 2-8.5 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
         </button>
-        <button
-          type="button"
-          title="New"
-          aria-label="New"
-          className="h-7 w-7 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-100"
-        >
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path d="M4 6.5c0-1.1.9-2 2-2h7.5L17 8v5.5c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V6.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-            <path d="M10 8v4M8 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </button>
+        <div className="relative" ref={addCollectionsMenuRef}>
+          <button
+            type="button"
+            title="Add collections"
+            aria-label="Add collections"
+            onClick={() => setShowAddCollectionsMenu(!showAddCollectionsMenu)}
+            className="h-7 w-7 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-100"
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M4 6.5c0-1.1.9-2 2-2h7.5L17 8v5.5c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V6.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+              <path d="M10 8v4M8 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+          {showAddCollectionsMenu && (
+            <div className="absolute left-0 top-full mt-1 py-1 min-w-[200px] bg-white border border-gray-200 rounded-md shadow-lg z-50">
+              {!showSelectFromDb ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={addNewCollection}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Add a new Collection
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSelectFromDb(true)}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Select from database
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowSelectFromDb(false)}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-100 border-b border-gray-100"
+                  >
+                    ← Back
+                  </button>
+                  {(schemaData as { tables: { id: string; label: string; position: { x: number; y: number }; schema: unknown[] }[] }).tables.map((table) => (
+                    <button
+                      key={table.id}
+                      type="button"
+                      onClick={() => addCollectionFromDatabase(table)}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      {table.label}
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
         <button
           type="button"
           title="Add relationships"
@@ -491,33 +697,46 @@ function FlowContent() {
       </div>
       {/* Add relationships button merged into Connect icon */}
         <button
+          type="button"
+          title="Reorder fields"
+          aria-label="Reorder fields"
           onClick={() => {
             setIsReorderMode(!isReorderMode);
             if (isRelationshipMode) setIsRelationshipMode(false);
             if (isHoverMode) setIsHoverMode(false);
           }}
-          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+          className={`h-7 w-7 inline-flex items-center justify-center rounded-md ${
             isReorderMode
               ? "bg-primary text-primary-foreground"
-              : "bg-background border border-border hover:bg-muted"
+              : "text-gray-700 hover:bg-gray-100"
           }`}
         >
-          Reorder fields
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M5 6h10M5 10h10M5 14h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
         </button>
         <button
+          type="button"
+          title="New Group"
+          aria-label="New Group"
           onClick={() => {
             setIsGroupingMode(!isGroupingMode);
             if (isRelationshipMode) setIsRelationshipMode(false);
             if (isReorderMode) setIsReorderMode(false);
             if (isHoverMode) setIsHoverMode(false);
           }}
-          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+          className={`h-7 w-7 inline-flex items-center justify-center rounded-md ${
             isGroupingMode
               ? "bg-primary text-primary-foreground"
-              : "bg-background border border-border hover:bg-muted"
+              : "text-gray-700 hover:bg-gray-100"
           }`}
         >
-          New Group
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <rect x="3" y="4" width="14" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+            <rect x="5" y="6" width="4" height="3" rx="0.5" stroke="currentColor" strokeWidth="1" />
+            <rect x="11" y="6" width="4" height="3" rx="0.5" stroke="currentColor" strokeWidth="1" />
+            <rect x="5" y="11" width="4" height="3" rx="0.5" stroke="currentColor" strokeWidth="1" />
+          </svg>
         </button>
       </div>
       <div className="flex items-center gap-1.5">
@@ -534,7 +753,7 @@ function FlowContent() {
               : "bg-background border border-border hover:bg-muted"
           }`}
         >
-          Hover mode
+          Add field below...
         </button>
         <button
           onClick={() => {
@@ -557,7 +776,7 @@ function FlowContent() {
   );
 
   return (
-    <ModeContext.Provider value={{ isRelationshipMode, isReorderMode, isHoverMode, selectedHandle, setSelectedHandle, isFieldDragging, setIsFieldDragging }}>
+    <ModeContext.Provider value={{ isRelationshipMode, isReorderMode, isHoverMode, selectedHandle, setSelectedHandle, isFieldDragging, setIsFieldDragging, pushHistory }}>
       <div ref={frameRef} className="relative w-full h-full">
         {toolbarTarget ? createPortal(controls, toolbarTarget) : controls}
       <ReactFlow
@@ -671,9 +890,10 @@ function App() {
         MongoDB Compass Dev
       </div>
       <div className="flex h-[calc(100%-40px)]">
-        <aside className="w-60 border-r border-gray-200 bg-[#E5F3ED] flex flex-col">
+        <aside className="w-60 border-r border-gray-200 bg-gray-100 flex flex-col">
           <div className="px-4 py-3 text-sm font-semibold text-gray-800">Compass</div>
-          <div className="px-4 py-2 text-xs text-gray-600">Data Modeling</div>
+          <div className="px-4 py-2 text-xs text-gray-600">My Queries</div>
+          <div className="mx-2 px-3 py-2 text-xs font-medium text-gray-800 bg-gray-200 rounded">Data Modeling</div>
           <div className="px-4 py-2 text-xs font-semibold text-gray-700">Connections (4)</div>
           <div className="mx-4 mb-2 h-8 rounded border border-gray-300 bg-white text-xs flex items-center px-2 text-gray-500">
             Search connections
