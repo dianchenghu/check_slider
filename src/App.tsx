@@ -588,7 +588,7 @@ function FlowContent() {
 
 
   const controls = (
-    <div className="flex items-center justify-between w-full">
+    <div className="flex items-center justify-between w-full font-euclid">
       <div className="flex items-center gap-3">
       <div className="flex items-center gap-1.5">
         <button
@@ -886,17 +886,19 @@ function FlowContent() {
 function App() {
   return (
     <div className="h-screen w-screen bg-[#F7F8F7] text-foreground">
-      <div className="h-10 border-b border-gray-200 flex items-center justify-center text-xs text-gray-600">
+      <div className="h-8 border-b border-gray-200 flex items-center justify-center text-xs font-bold text-gray-800 font-euclid">
         MongoDB Compass Dev
       </div>
-      <div className="flex h-[calc(100%-40px)]">
-        <aside className="w-60 border-r border-gray-200 bg-gray-100 flex flex-col">
+      <div className="flex h-[calc(100%-32px)]">
+        <aside className="w-60 border-r border-gray-200 bg-gray-100 flex flex-col font-euclid">
           <div className="px-4 py-3 text-sm font-semibold text-gray-800">Compass</div>
           <div className="px-4 py-2 text-xs text-gray-600">My Queries</div>
           <div className="mx-2 px-3 py-2 text-xs font-medium text-gray-800 bg-gray-200 rounded">Data Modeling</div>
+          <div className="border-t border-gray-300 mt-2 pt-2">
           <div className="px-4 py-2 text-xs font-semibold text-gray-700">Connections (4)</div>
           <div className="mx-4 mb-2 h-8 rounded border border-gray-300 bg-white text-xs flex items-center px-2 text-gray-500">
             Search connections
+          </div>
           </div>
           <div className="flex-1 overflow-y-auto px-4 pb-4 text-xs text-gray-700 space-y-2">
             <div>compass data</div>

@@ -20,6 +20,7 @@ export default {
       fontFamily: {
         sans: ['Source Code Pro', 'monospace'],
         mono: ['Source Code Pro', 'monospace'],
+        euclid: ['Euclid Circular A', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
