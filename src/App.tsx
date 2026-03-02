@@ -447,8 +447,6 @@ function FlowContent() {
       });
   }, [nodes, isGroupsOnly, isReorderMode]);
 
-  const visibleNodeIds = useMemo(() => new Set(viewNodes.map((node) => node.id)), [viewNodes]);
-
   const highlightedEdgeHandles = useMemo(() => {
     if (!selectedEdgeId) return null;
     const edge = edges.find((e) => e.id === selectedEdgeId);
