@@ -24,7 +24,7 @@ export type DatabaseSchemaNodeData = {
 };
 
 const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
-  const { isRelationshipMode, isReorderMode, isHoverMode, selectedHandle, setSelectedHandle, isFieldDragging, setIsFieldDragging, pushHistory } = useMode();
+  const { isRelationshipMode, isReorderMode, isHoverMode, selectedHandle, setSelectedHandle, isFieldDragging, setIsFieldDragging, pushHistory, highlightedEdgeHandles } = useMode();
   const [hoverSide, setHoverSide] = useState<"left" | "right" | null>(null);
   const [hoveredHandleId, setHoveredHandleId] = useState<string | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -519,9 +519,17 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
           {visibleRows.map((entry, index) => {
             const isReorderable = entry.topLevelIndex !== undefined;
             const isLeafField = entry.type !== "object";
+            const isHighlighted =
+              highlightedEdgeHandles &&
+              nodeId &&
+              ((nodeId === highlightedEdgeHandles.sourceNodeId && entry.path === highlightedEdgeHandles.sourceHandle) ||
+                (nodeId === highlightedEdgeHandles.targetNodeId && entry.path === highlightedEdgeHandles.targetHandle));
             return (
             <DatabaseSchemaTableRow
               key={`${entry.path}-${index}`}
+              data-field-row
+              data-node-id={nodeId ?? undefined}
+              data-field-path={entry.path}
               draggable={(isReorderMode || hoverModeDragIndex === index) && isReorderable}
               onDragStart={(e: React.DragEvent) => {
                 const shouldBeDraggable =
@@ -585,7 +593,9 @@ const DatabaseSchemaDemo = memo(({ data }: DatabaseSchemaNodeData) => {
                 draggedIndex === index ? "opacity-50" : ""
               } ${dragOverIndex === index ? "border-t-2 border-blue-500" : ""} ${
                 hoverModeDragIndex === index ? "bg-blue-100" : ""
-              } ${index === 0 ? "pt-2" : ""} ${index === visibleRows.length - 1 ? "pb-2" : ""}`}
+              } ${isHighlighted ? "outline outline-2 outline-dashed outline-blue-500 outline-offset-0" : ""} ${
+                index === 0 ? "pt-2" : ""
+              } ${index === visibleRows.length - 1 ? "pb-2" : ""}`}
             >
               {/* Wrapper td for absolute positioned elements - spans all columns */}
               <td 

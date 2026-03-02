@@ -8,8 +8,11 @@ import GroupNode from "./components/GroupNode";
 import { GroupingHandler } from "./components/GroupingHandler";
 import { RectangleDrawer } from "./components/RectangleDrawer";
 import { RecommendationsPanel } from "./components/RecommendationsPanel";
+import { CollectionPanel } from "./components/CollectionPanel";
+import { FieldPanel } from "./components/FieldPanel";
+import { RelationshipPanel } from "./components/RelationshipPanel";
 import schemaData from "./data/schema.json";
-import { loadSchemaFromJSON } from "./lib/schemaLoader";
+import { loadSchemaFromJSON, removeFieldByPath, getFieldTypeByPath, type SchemaField } from "./lib/schemaLoader";
 
 // Create Context to share state
 interface ModeContextType {
@@ -21,6 +24,13 @@ interface ModeContextType {
   isFieldDragging: boolean;
   setIsFieldDragging: (isDragging: boolean) => void;
   pushHistory: (nodes: Node[], edges: Edge[]) => void;
+  setSelectedField: (field: { nodeId: string; fieldPath: string } | null) => void;
+  highlightedEdgeHandles: {
+    sourceNodeId: string;
+    sourceHandle: string;
+    targetNodeId: string;
+    targetHandle: string;
+  } | null;
 }
 
 const ModeContext = createContext<ModeContextType>({
@@ -32,6 +42,8 @@ const ModeContext = createContext<ModeContextType>({
   isFieldDragging: false,
   setIsFieldDragging: () => {},
   pushHistory: () => {},
+  setSelectedField: () => {},
+  highlightedEdgeHandles: null,
 });
 
 export const useMode = () => useContext(ModeContext);
@@ -71,6 +83,11 @@ function FlowContent() {
   const [showAddCollectionsMenu, setShowAddCollectionsMenu] = useState(false);
   const [showSelectFromDb, setShowSelectFromDb] = useState(false);
   const addCollectionsMenuRef = useRef<HTMLDivElement>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedField, setSelectedField] = useState<{ nodeId: string; fieldPath: string } | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [collectionNotes, setCollectionNotes] = useState<Record<string, string>>({});
+  const [relationshipNotes, setRelationshipNotes] = useState<Record<string, string>>({});
 
   const historyRef = useRef<{ nodes: Node[]; edges: Edge[] }[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -432,22 +449,35 @@ function FlowContent() {
 
   const visibleNodeIds = useMemo(() => new Set(viewNodes.map((node) => node.id)), [viewNodes]);
 
-  // Dynamically update edge styles based on relationship mode
-  const edgesWithStyle = useMemo(() => {
-    const baseEdges = edges;
+  const highlightedEdgeHandles = useMemo(() => {
+    if (!selectedEdgeId) return null;
+    const edge = edges.find((e) => e.id === selectedEdgeId);
+    if (!edge?.sourceHandle || !edge?.targetHandle) return null;
+    return {
+      sourceNodeId: edge.source,
+      sourceHandle: edge.sourceHandle,
+      targetNodeId: edge.target,
+      targetHandle: edge.targetHandle,
+    };
+  }, [selectedEdgeId, edges]);
 
-    return baseEdges.map((edge) => ({
-      ...edge,
-      type: 'smoothstep',
-      style: {
-        stroke: isRelationshipMode ? "#b1b1b7" : "#9ca3af",
-        strokeWidth: isGroupsOnly ? 4 : 2,
-        opacity: isRelationshipMode ? 1 : 0.7,
-      },
-      className: isRelationshipMode ? undefined : "edge-gray",
-      animated: false,
-    }));
-  }, [edges, isRelationshipMode, isGroupsOnly, visibleNodeIds]);
+  // Dynamically update edge styles based on relationship mode and selection
+  const edgesWithStyle = useMemo(() => {
+    return edges.map((edge) => {
+      const isSelected = edge.id === selectedEdgeId;
+      return {
+        ...edge,
+        type: 'smoothstep' as const,
+        style: {
+          stroke: isSelected ? "#2563eb" : isRelationshipMode ? "#b1b1b7" : "#9ca3af",
+          strokeWidth: isSelected ? 3 : isGroupsOnly ? 4 : 2,
+          opacity: isSelected ? 1 : isRelationshipMode ? 1 : 0.7,
+        },
+        className: isRelationshipMode && !isSelected ? undefined : isSelected ? "edge-selected" : "edge-gray",
+        animated: false,
+      };
+    });
+  }, [edges, isRelationshipMode, isGroupsOnly, selectedEdgeId]);
 
   const onConnectStart = useCallback((event: MouseEvent | TouchEvent, params: OnConnectStartParams) => {
     if (!isRelationshipMode) return;
@@ -500,23 +530,46 @@ function FlowContent() {
   }, [selectedHandle]);
 
   const onNodeClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      if (isGroupsOnly && (node.type === "collectionCompact" || node.type === "databaseSchema")) {
-        setExpandedNodeIds((prev) => {
-          const next = new Set(prev);
-          if (next.has(node.id)) {
-            next.delete(node.id);
-          } else {
-            next.add(node.id);
-          }
-          return next;
-        });
-        return;
-      }
-
+    (event: React.MouseEvent, node: Node) => {
       if (isRelationshipMode) {
         setHasClickedNode(true);
         setShowInitialTooltip(false);
+        return;
+      }
+
+      const fieldRow = (event.target as HTMLElement).closest("[data-field-row]");
+      if (fieldRow && (node.type === "collectionCompact" || node.type === "databaseSchema")) {
+        const path = fieldRow.getAttribute("data-field-path");
+        if (path) {
+          setSelectedField({ nodeId: node.id, fieldPath: path });
+          setSelectedNodeId(null);
+          setSelectedEdgeId(null);
+          if (isGroupsOnly) {
+            setExpandedNodeIds((prev) => {
+              const next = new Set(prev);
+              next.add(node.id);
+              return next;
+            });
+          }
+          return;
+        }
+      }
+
+      if (node.type === "collectionCompact" || node.type === "databaseSchema") {
+        setSelectedNodeId(node.id);
+        setSelectedField(null);
+        setSelectedEdgeId(null);
+        if (isGroupsOnly) {
+          setExpandedNodeIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(node.id)) {
+              next.delete(node.id);
+            } else {
+              next.add(node.id);
+            }
+            return next;
+          });
+        }
       }
     },
     [isGroupsOnly, isRelationshipMode],
@@ -585,7 +638,78 @@ function FlowContent() {
     }
   }, [isRelationshipMode]);
 
+  const selectedNode = selectedNodeId
+    ? viewNodes.find((n) => n.id === selectedNodeId) ?? null
+    : null;
 
+  const handleCollectionRename = useCallback(
+    (nodeId: string, newLabel: string) => {
+      const newNodes = nodes.map((n) =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, label: newLabel } }
+          : n
+      );
+      pushHistory(newNodes, edges);
+      setNodes(newNodes);
+    },
+    [nodes, edges, setNodes, pushHistory]
+  );
+
+  const handleCollectionDelete = useCallback(
+    (nodeId: string) => {
+      pushHistory(nodes, edges);
+      setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+      setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+      setSelectedNodeId(null);
+    },
+    [nodes, edges, setNodes, setEdges, pushHistory]
+  );
+
+  const handleRelationshipDelete = useCallback(
+    (edgeId: string) => {
+      pushHistory(nodes, edges);
+      setEdges((eds) => eds.filter((e) => e.id !== edgeId));
+      setSelectedEdgeId(null);
+    },
+    [nodes, edges, setEdges, pushHistory]
+  );
+
+  const handleRelationshipUpdate = useCallback(
+    (edgeId: string, updates: Partial<Edge>) => {
+      const newEdges = edges.map((e) =>
+        e.id === edgeId ? { ...e, ...updates } : e
+      );
+      pushHistory(nodes, newEdges);
+      setEdges(newEdges);
+    },
+    [nodes, edges, setEdges, pushHistory]
+  );
+
+  const handleFieldUpdate = useCallback(
+    (nodeId: string, schema: SchemaField[]) => {
+      const newNodes = nodes.map((n) =>
+        n.id === nodeId ? { ...n, data: { ...n.data, schema } } : n
+      );
+      pushHistory(newNodes, edges);
+      setNodes(newNodes);
+    },
+    [nodes, edges, setNodes, pushHistory]
+  );
+
+  const handleFieldDelete = useCallback(
+    (nodeId: string, fieldPath: string) => {
+      const node = nodes.find((n) => n.id === nodeId);
+      const schema = (node?.data as { schema?: SchemaField[] })?.schema ?? [];
+      const newSchema = removeFieldByPath(schema, fieldPath);
+      const newNodes = nodes.map((n) =>
+        n.id === nodeId ? { ...n, data: { ...n.data, schema: newSchema } } : n
+      );
+      pushHistory(newNodes, edges);
+      setNodes(newNodes);
+      setSelectedField(null);
+    },
+    [nodes, edges, setNodes, pushHistory]
+  );
 
   const controls = (
     <div className="flex items-center justify-between w-full font-euclid">
@@ -776,7 +900,7 @@ function FlowContent() {
   );
 
   return (
-    <ModeContext.Provider value={{ isRelationshipMode, isReorderMode, isHoverMode, selectedHandle, setSelectedHandle, isFieldDragging, setIsFieldDragging, pushHistory }}>
+    <ModeContext.Provider value={{ isRelationshipMode, isReorderMode, isHoverMode, selectedHandle, setSelectedHandle, isFieldDragging, setIsFieldDragging, pushHistory, setSelectedField, highlightedEdgeHandles }}>
       <div ref={frameRef} className="relative w-full h-full">
         {toolbarTarget ? createPortal(controls, toolbarTarget) : controls}
       <ReactFlow
@@ -796,6 +920,12 @@ function FlowContent() {
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
         onNodeClick={onNodeClick}
+        onEdgeClick={(_, edge) => {
+          setSelectedEdgeId(edge.id);
+          setSelectedNodeId(null);
+          setSelectedField(null);
+        }}
+        onPaneClick={() => setSelectedEdgeId(null)}
       >
         <Background />
         <RectangleDrawer
@@ -872,6 +1002,62 @@ function FlowContent() {
           <span className="barber-pole__label">5</span>
         </div>
       </div>
+
+      {/* Field Panel */}
+        {selectedField && !selectedEdgeId && (() => {
+          const node = viewNodes.find((n) => n.id === selectedField.nodeId);
+          const schema = (node?.data as { schema?: SchemaField[] })?.schema ?? [];
+          const fieldType = getFieldTypeByPath(schema, selectedField.fieldPath) ?? "varchar";
+          const fieldTitle = selectedField.fieldPath.split(".").pop() ?? selectedField.fieldPath;
+          return (
+            <FieldPanel
+              nodeId={selectedField.nodeId}
+              fieldPath={selectedField.fieldPath}
+              fieldTitle={fieldTitle}
+              fieldType={fieldType}
+              nodes={viewNodes}
+              edges={edges}
+              onClose={() => setSelectedField(null)}
+              onUpdate={handleFieldUpdate}
+              onDeleteField={handleFieldDelete}
+              onDeleteRelationship={handleRelationshipDelete}
+              onAddRelationship={() => setIsRelationshipMode(true)}
+            />
+          );
+        })()}
+
+      {/* Relationship Panel */}
+        {selectedEdgeId && (
+          <RelationshipPanel
+            edge={edges.find((e) => e.id === selectedEdgeId) ?? null}
+            nodes={viewNodes}
+            onClose={() => setSelectedEdgeId(null)}
+            onDelete={handleRelationshipDelete}
+            onUpdate={handleRelationshipUpdate}
+            notes={relationshipNotes}
+            onNotesChange={(edgeId, notes) =>
+              setRelationshipNotes((prev) => ({ ...prev, [edgeId]: notes }))
+            }
+          />
+        )}
+
+      {/* Collection Panel */}
+        {selectedNode && !selectedField && !selectedEdgeId && (
+          <CollectionPanel
+            node={selectedNode}
+            nodes={viewNodes}
+            edges={edges}
+            onClose={() => setSelectedNodeId(null)}
+            onRename={handleCollectionRename}
+            onDelete={handleCollectionDelete}
+            onDeleteRelationship={handleRelationshipDelete}
+            onAddRelationship={() => setIsRelationshipMode(true)}
+            notes={collectionNotes}
+            onNotesChange={(nodeId, notes) =>
+              setCollectionNotes((prev) => ({ ...prev, [nodeId]: notes }))
+            }
+          />
+        )}
 
       {/* Recommendations Panel */}
         <RecommendationsPanel

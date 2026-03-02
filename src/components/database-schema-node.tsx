@@ -56,6 +56,9 @@ export type DatabaseSchemaTableRowProps = {
   className?: string;
   style?: React.CSSProperties;
   draggable?: boolean;
+  "data-field-row"?: boolean;
+  "data-node-id"?: string;
+  "data-field-path"?: string;
   onDragStart?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
@@ -70,6 +73,9 @@ export const DatabaseSchemaTableRow = ({
   className,
   style,
   draggable,
+  "data-field-row": dataFieldRow,
+  "data-node-id": dataNodeId,
+  "data-field-path": dataFieldPath,
   onDragStart,
   onDragOver,
   onDrop,
@@ -83,6 +89,9 @@ export const DatabaseSchemaTableRow = ({
       className={cn("relative text-xs bg-white hover:bg-gray-100/50 border-0", className)}
       style={style}
       draggable={draggable}
+      {...(dataFieldRow && { "data-field-row": "" })}
+      {...(dataNodeId && { "data-node-id": dataNodeId })}
+      {...(dataFieldPath && { "data-field-path": dataFieldPath })}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}

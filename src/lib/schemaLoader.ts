@@ -93,6 +93,71 @@ export function getHandleIds(schema: SchemaField[], parentPath = ""): string[] {
   return result;
 }
 
+/** Get field type by path. */
+export function getFieldTypeByPath(schema: SchemaField[], path: string): string | undefined {
+  const parts = path.split(".");
+  let current: SchemaField[] = schema;
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const field = current.find((f) => f.title === part);
+    if (!field) return undefined;
+    if (i === parts.length - 1) return field.type;
+    if (!isSchemaFieldObject(field)) return undefined;
+    current = field.fields;
+  }
+  return undefined;
+}
+
+/** Update a field's type by path. Returns new schema (immutable). */
+export function updateFieldTypeByPath(
+  schema: SchemaField[],
+  path: string,
+  newType: string
+): SchemaField[] {
+  const parts = path.split(".");
+  const first = parts[0];
+  if (parts.length === 1) {
+    return schema.map((f) => {
+      if (f.title !== first) return f;
+      if (newType === "object" && !isSchemaFieldObject(f)) {
+        return { ...f, type: "object", fields: [] } as SchemaFieldObject;
+      }
+      if (newType !== "object" && isSchemaFieldObject(f)) {
+        return { title: f.title, type: newType };
+      }
+      return { ...f, type: newType };
+    });
+  }
+  return schema.map((f) => {
+    if (f.title !== first) return f;
+    if (!isSchemaFieldObject(f)) return f;
+    const restPath = parts.slice(1).join(".");
+    return {
+      ...f,
+      fields: updateFieldTypeByPath(f.fields, restPath, newType),
+    };
+  });
+}
+
+/** Remove a field by path. Returns new schema (immutable). */
+export function removeFieldByPath(schema: SchemaField[], path: string): SchemaField[] {
+  const parts = path.split(".");
+  const first = parts[0];
+  if (parts.length === 1) {
+    return schema.filter((f) => f.title !== first);
+  }
+  return schema
+    .map((f) => {
+      if (f.title !== first) return f;
+      if (!isSchemaFieldObject(f)) return f;
+      const restPath = parts.slice(1).join(".");
+      const newFields = removeFieldByPath(f.fields, restPath);
+      if (newFields.length === 0) return null;
+      return { ...f, fields: newFields };
+    })
+    .filter((f): f is SchemaField => f !== null);
+}
+
 /** Update a field's title by path. Returns new schema (immutable). */
 export function updateFieldTitleByPath(
   schema: SchemaField[],
