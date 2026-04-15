@@ -1,5 +1,38 @@
 import { useState } from "react";
 
+type ModeContextType = {
+  isRelationshipMode: boolean;
+  isReorderMode: boolean;
+  isHoverMode: boolean;
+  selectedHandle: { nodeId: string; handleId: string; type: "target" | "source" } | null;
+  setSelectedHandle: (
+    handle: { nodeId: string; handleId: string; type: "target" | "source" } | null
+  ) => void;
+  isFieldDragging: boolean;
+  setIsFieldDragging: (isDragging: boolean) => void;
+  pushHistory: (...args: unknown[]) => void;
+  setSelectedField: (field: { nodeId: string; fieldPath: string } | null) => void;
+  highlightedEdgeHandles: {
+    sourceNodeId: string;
+    sourceHandle: string;
+    targetNodeId: string;
+    targetHandle: string;
+  } | null;
+};
+
+export const useMode = (): ModeContextType => ({
+  isRelationshipMode: false,
+  isReorderMode: false,
+  isHoverMode: false,
+  selectedHandle: null,
+  setSelectedHandle: () => {},
+  isFieldDragging: false,
+  setIsFieldDragging: () => {},
+  pushHistory: () => {},
+  setSelectedField: () => {},
+  highlightedEdgeHandles: null,
+});
+
 type ScaleLevel = {
   label: string;
 };
