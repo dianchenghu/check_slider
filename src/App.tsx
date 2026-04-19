@@ -333,7 +333,7 @@ function ScaleBar({
         </div>
       )}
 
-      <div className={isCompact ? "mt-3" : "mt-6"}>
+      <div className={isCompact ? "mt-1.5" : "mt-4"}>
         <input
           type="range"
           min={0}
@@ -453,8 +453,32 @@ function App() {
     const workloadIndex = Math.min(4, Math.max(0, Math.round(person.workload)));
     return sum + scoreByIndex[moodIndex] + scoreByIndex[workloadIndex];
   }, 0);
-  const pokemonId = ((totalScore - 1) % 151) + 1;
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const mondayOffset = (dayOfWeek + 6) % 7;
+  const mondayDate = new Date(today);
+  mondayDate.setDate(today.getDate() - mondayOffset);
+  const mondayNumber = mondayDate.getDate();
+  const pokemonId = ((totalScore + mondayNumber - 1) % 151) + 1;
   const pokemonName = gen1PokemonNames[pokemonId - 1] ?? "Unknown";
+  const formattedDate = today.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const weekNumber = (() => {
+    const date = new Date(today);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+    const week1 = new Date(date.getFullYear(), 0, 4);
+    return (
+      1 +
+      Math.round(
+        ((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) /
+          7
+      )
+    );
+  })();
 
   useEffect(() => {
     setIsPokemonLoading(true);
@@ -558,6 +582,9 @@ function App() {
           <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">
             Data Core Design Weekly Status Checkin
           </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {formattedDate} · Week {weekNumber}
+          </p>
         </header>
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -593,7 +620,7 @@ function App() {
                   <h2 className="text-xs font-semibold text-gray-900">{person.name}</h2>
                 </div>
               </div>
-              <div className="mt-2.5 flex flex-col gap-2">
+              <div className="mt-1.5 flex flex-col gap-1.5">
                 <ScaleBar
                   levels={moodLevels}
                   showLabels={false}
