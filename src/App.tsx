@@ -48,6 +48,8 @@ type ScaleBarProps = {
   value?: number;
   onChange?: (value: number) => void;
   trackClassName?: string;
+  showStatusBadge?: boolean;
+  hideThumb?: boolean;
 };
 
 const moodLevels: ScaleLevel[] = [
@@ -288,6 +290,8 @@ function ScaleBar({
   value,
   onChange,
   trackClassName,
+  showStatusBadge = true,
+  hideThumb = false,
 }: ScaleBarProps) {
   const [localValue, setLocalValue] = useState(2);
   const currentValue = value ?? localValue;
@@ -304,15 +308,25 @@ function ScaleBar({
 
   return (
     <section className={`rounded-2xl bg-white ${isCompact ? "p-3" : "p-6"}`}>
-      {(title || description) && (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            {title && <h2 className="text-lg font-semibold text-gray-900">{title}</h2>}
-            {description && <p className="text-sm text-gray-500">{description}</p>}
-          </div>
-          <div className={`rounded-full bg-gray-100 px-4 py-1 text-sm text-gray-700 ${isCompact ? "text-xs" : ""}`}>
-            <span className="font-semibold text-gray-900">{levels[activeIndex].label}</span>
-          </div>
+      {(title || description || showStatusBadge) && (
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          {(title || description) && (
+            <div>
+              {title && <h2 className="text-lg font-semibold text-gray-900">{title}</h2>}
+              {description && <p className="text-sm text-gray-500">{description}</p>}
+            </div>
+          )}
+          {showStatusBadge && (
+            <div className="ml-auto">
+              <div
+                className={`rounded-full bg-gray-100 px-4 py-1 text-sm text-gray-700 ${
+                  isCompact ? "text-xs px-2 py-0.5" : ""
+                }`}
+              >
+                <span className="font-semibold text-gray-900">{levels[activeIndex].label}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -324,7 +338,7 @@ function ScaleBar({
           step={0.01}
           value={currentValue}
           onChange={(event) => handleChange(Number(event.target.value))}
-          className={`scale-input w-full accent-emerald-500 ${isCompact ? "scale-input--compact" : ""} ${trackClassName ?? ""}`}
+          className={`scale-input w-full accent-emerald-500 ${isCompact ? "scale-input--compact" : ""} ${trackClassName ?? ""} ${hideThumb ? "scale-input--no-thumb" : ""}`}
           aria-label={`${title} scale`}
         />
         <div className="mt-2 grid grid-cols-5 items-center">
@@ -461,6 +475,21 @@ function App() {
           border-radius: 999px;
           background: #2f343b;
         }
+        .scale-input--no-thumb {
+          pointer-events: none;
+        }
+        .scale-input--no-thumb::-webkit-slider-thumb {
+          width: 0;
+          height: 0;
+          border: 0;
+          box-shadow: none;
+        }
+        .scale-input--no-thumb::-moz-range-thumb {
+          width: 0;
+          height: 0;
+          border: 0;
+          box-shadow: none;
+        }
         .scale-input--mood {
           background: linear-gradient(90deg, rgba(88, 10, 10, 0.98), rgba(88, 45, 8, 0.98), rgba(90, 66, 10, 0.98), rgba(12, 62, 26, 0.98), rgba(8, 58, 40, 0.98));
         }
@@ -490,12 +519,9 @@ function App() {
       `}</style>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-12">
         <header className="text-center">
-          <h1 className="mt-3 text-3xl font-bold text-gray-900 sm:text-4xl">
-            Mood & Workload Check-In
+          <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">
+            Data Core Design Weekly Status Checkin
           </h1>
-          <p className="mt-2 text-sm text-gray-500">
-            Move the knob freely.
-          </p>
         </header>
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -504,12 +530,16 @@ function App() {
             description="How are you feeling this week?"
             levels={moodLevels}
             trackClassName="scale-input--mood"
+            showStatusBadge={false}
+            hideThumb
           />
           <ScaleBar
             title="Workload"
             description="How busy do you feel this week?"
             levels={workloadLevels}
             trackClassName="scale-input--workload"
+            showStatusBadge={false}
+            hideThumb
           />
         </div>
 
@@ -526,9 +556,6 @@ function App() {
                   />
                   <h2 className="text-xs font-semibold text-gray-900">{person.name}</h2>
                 </div>
-                <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-400">
-                  Status
-                </span>
               </div>
               <div className="mt-2.5 flex flex-col gap-2">
                 <ScaleBar
@@ -537,6 +564,7 @@ function App() {
                   size="compact"
                   value={personStates[index].mood}
                   trackClassName="scale-input--mood"
+                  showStatusBadge
                   onChange={(value) =>
                     setPersonStates((current) =>
                       current.map((state, idx) =>
@@ -551,6 +579,7 @@ function App() {
                   size="compact"
                   value={personStates[index].workload}
                   trackClassName="scale-input--workload"
+                  showStatusBadge
                   onChange={(value) =>
                     setPersonStates((current) =>
                       current.map((state, idx) =>
