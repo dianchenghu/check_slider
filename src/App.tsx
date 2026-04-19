@@ -128,6 +128,7 @@ const people = [
 ].sort((a, b) => a.name.localeCompare(b.name));
 
 const scoreByIndex = [2, 4, 6, 8, 10];
+const STORAGE_KEY = "statuscheck_shared_states";
 const gen1PokemonNames = [
   "Bulbasaur",
   "Ivysaur",
@@ -367,6 +368,7 @@ function App() {
   const [personStates, setPersonStates] = useState(() =>
     people.map(() => ({ mood: 2, workload: 2 }))
   );
+  const [isPokemonLoading, setIsPokemonLoading] = useState(true);
   const hasLoadedRef = useRef(false);
   const saveTimeoutRef = useRef<number | null>(null);
   const lastSyncedRef = useRef<string>("");
@@ -382,6 +384,19 @@ function App() {
       hasLoadedRef.current = true;
       return;
     }
+    if (typeof window !== "undefined") {
+      const cached = window.localStorage.getItem(STORAGE_KEY);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as { mood: number; workload: number }[];
+          if (Array.isArray(parsed) && parsed.length === people.length) {
+            setPersonStates(parsed);
+          }
+        } catch {
+          window.localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+    }
     const db = getFirebaseDb();
     const sharedRef = doc(db, "statuschecks", "shared");
     const unsubscribe = onSnapshot(sharedRef, (snapshot) => {
@@ -396,6 +411,9 @@ function App() {
           if (nextSerialized !== lastSyncedRef.current) {
             lastSyncedRef.current = nextSerialized;
             setPersonStates(next);
+            if (typeof window !== "undefined") {
+              window.localStorage.setItem(STORAGE_KEY, nextSerialized);
+            }
           }
         }
       }
@@ -437,6 +455,14 @@ function App() {
   }, 0);
   const pokemonId = ((totalScore - 1) % 151) + 1;
   const pokemonName = gen1PokemonNames[pokemonId - 1] ?? "Unknown";
+
+  useEffect(() => {
+    setIsPokemonLoading(true);
+    const timeout = window.setTimeout(() => {
+      setIsPokemonLoading(false);
+    }, 2000);
+    return () => window.clearTimeout(timeout);
+  }, [pokemonId]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50 text-gray-900">
@@ -608,12 +634,18 @@ function App() {
                 <h2 className="text-xs font-semibold text-gray-900">Pokemon of the week</h2>
             </div>
             <div className="mt-3 flex flex-col items-center gap-2">
-              <img
-                src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemonId}.png`}
-                alt={`Gen 1 Pokemon #${pokemonId}`}
-                className="h-32 w-32"
-                loading="lazy"
-              />
+              {isPokemonLoading ? (
+                <div className="flex h-32 w-32 items-center justify-center rounded-full border border-dashed border-gray-300 text-[10px] font-medium text-gray-400">
+                  Loading...
+                </div>
+              ) : (
+                <img
+                  src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemonId}.png`}
+                  alt={`Gen 1 Pokemon #${pokemonId}`}
+                  className="h-32 w-32"
+                  loading="lazy"
+                />
+              )}
               <div className="text-[10px] font-medium text-gray-500">
                 #{pokemonId} {pokemonName}
               </div>
