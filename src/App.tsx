@@ -50,6 +50,7 @@ type ScaleBarProps = {
   trackClassName?: string;
   showStatusBadge?: boolean;
   hideThumb?: boolean;
+  disabled?: boolean;
 };
 
 const moodLevels: ScaleLevel[] = [
@@ -292,6 +293,7 @@ function ScaleBar({
   trackClassName,
   showStatusBadge = true,
   hideThumb = false,
+  disabled = false,
 }: ScaleBarProps) {
   const [localValue, setLocalValue] = useState(2);
   const currentValue = value ?? localValue;
@@ -338,7 +340,8 @@ function ScaleBar({
           step={0.01}
           value={currentValue}
           onChange={(event) => handleChange(Number(event.target.value))}
-          className={`scale-input w-full accent-emerald-500 ${isCompact ? "scale-input--compact" : ""} ${trackClassName ?? ""} ${hideThumb ? "scale-input--no-thumb" : ""}`}
+          disabled={disabled}
+          className={`scale-input w-full accent-emerald-500 ${isCompact ? "scale-input--compact" : ""} ${trackClassName ?? ""} ${hideThumb ? "scale-input--no-thumb" : ""} ${disabled ? "scale-input--disabled" : ""}`}
           aria-label={`${title} scale`}
         />
         <div className="mt-2 grid grid-cols-5 items-center">
@@ -370,6 +373,9 @@ function App() {
   const hasFirebaseConfig = Boolean(
     import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_PROJECT_ID
   );
+  const canEdit =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("code") === "datacore";
 
   useEffect(() => {
     if (!hasFirebaseConfig) {
@@ -490,6 +496,10 @@ function App() {
           border: 0;
           box-shadow: none;
         }
+        .scale-input--disabled {
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
         .scale-input--mood {
           background: linear-gradient(90deg, rgba(88, 10, 10, 0.98), rgba(88, 45, 8, 0.98), rgba(90, 66, 10, 0.98), rgba(12, 62, 26, 0.98), rgba(8, 58, 40, 0.98));
         }
@@ -565,6 +575,7 @@ function App() {
                   value={personStates[index].mood}
                   trackClassName="scale-input--mood"
                   showStatusBadge
+                  disabled={!canEdit}
                   onChange={(value) =>
                     setPersonStates((current) =>
                       current.map((state, idx) =>
@@ -580,6 +591,7 @@ function App() {
                   value={personStates[index].workload}
                   trackClassName="scale-input--workload"
                   showStatusBadge
+                  disabled={!canEdit}
                   onChange={(value) =>
                     setPersonStates((current) =>
                       current.map((state, idx) =>
