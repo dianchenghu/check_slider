@@ -468,13 +468,6 @@ function App() {
   const mondayDate = new Date(today);
   mondayDate.setDate(today.getDate() - mondayOffset);
   const mondayNumber = mondayDate.getDate();
-  const pokemonId = ((totalScore + mondayNumber - 1) % 151) + 1;
-  const pokemonName = gen1PokemonNames[pokemonId - 1] ?? "Unknown";
-  const formattedDate = today.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
   const weekNumber = (() => {
     const date = new Date(today);
     date.setHours(0, 0, 0, 0);
@@ -488,6 +481,15 @@ function App() {
       )
     );
   })();
+  const adjustedScore =
+    weekNumber % 2 === 1 ? totalScore + mondayNumber : totalScore - mondayNumber;
+  const pokemonId = ((adjustedScore - 1) % 151 + 151) % 151 + 1;
+  const pokemonName = gen1PokemonNames[pokemonId - 1] ?? "Unknown";
+  const formattedDate = today.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
   useEffect(() => {
     setIsPokemonLoading(true);
@@ -623,7 +625,7 @@ function App() {
           />
           <ScaleBar
             title="Workload"
-            description="How busy do you feel this week?"
+            description="How busy do you feel last week?"
             levels={workloadLevels}
             trackClassName="scale-input--workload"
             showStatusBadge={false}
