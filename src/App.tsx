@@ -51,6 +51,7 @@ type ScaleBarProps = {
   showStatusBadge?: boolean;
   hideThumb?: boolean;
   disabled?: boolean;
+  headerIndicatorColor?: string;
 };
 
 const moodLevels: ScaleLevel[] = [
@@ -295,6 +296,7 @@ function ScaleBar({
   showStatusBadge = true,
   hideThumb = false,
   disabled = false,
+  headerIndicatorColor,
 }: ScaleBarProps) {
   const [localValue, setLocalValue] = useState(2);
   const currentValue = value ?? localValue;
@@ -314,7 +316,14 @@ function ScaleBar({
       {(title || description || showStatusBadge) && (
         <div className="flex flex-wrap items-start justify-between gap-2">
           {(title || description) && (
-            <div>
+            <div className="flex items-center gap-3">
+              {headerIndicatorColor && (
+                <span
+                  className="h-5 w-5 rounded-full border-[3px] border-white shadow-sm"
+                  style={{ backgroundColor: headerIndicatorColor }}
+                  aria-hidden="true"
+                />
+              )}
               {title && <h2 className="text-lg font-semibold text-gray-900">{title}</h2>}
               {description && <p className="text-sm text-gray-500">{description}</p>}
             </div>
@@ -520,11 +529,11 @@ function App() {
         }
         .scale-input--workload::-webkit-slider-thumb {
           background: #ffeea9;
-          box-shadow: 0 6px 12px rgba(255, 238, 169, 0.35);
+          box-shadow: 0 6px 12px rgba(209, 213, 219, 0.5);
         }
         .scale-input--workload::-moz-range-thumb {
           background: #ffeea9;
-          box-shadow: 0 6px 12px rgba(255, 238, 169, 0.35);
+          box-shadow: 0 6px 12px rgba(209, 213, 219, 0.5);
         }
         .scale-input::-moz-range-track {
           height: 10px;
@@ -549,6 +558,21 @@ function App() {
         .scale-input--disabled {
           cursor: not-allowed;
           opacity: 0.7;
+        }
+        .pokemon-spinner {
+          animation: spin 1.2s linear infinite;
+        }
+        .pokemon-spinner-circle {
+          animation: spin 1.2s linear infinite;
+          transform-origin: 50% 50%;
+        }
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
         }
         .scale-input--mood {
           background: linear-gradient(90deg, rgba(88, 10, 10, 0.98), rgba(88, 45, 8, 0.98), rgba(90, 66, 10, 0.98), rgba(12, 62, 26, 0.98), rgba(8, 58, 40, 0.98));
@@ -595,6 +619,7 @@ function App() {
             trackClassName="scale-input--mood"
             showStatusBadge={false}
             hideThumb
+            headerIndicatorColor="#00ed64"
           />
           <ScaleBar
             title="Workload"
@@ -603,6 +628,7 @@ function App() {
             trackClassName="scale-input--workload"
             showStatusBadge={false}
             hideThumb
+            headerIndicatorColor="#ffeea9"
           />
         </div>
 
@@ -662,20 +688,35 @@ function App() {
             </div>
             <div className="mt-3 flex flex-col items-center gap-2">
               {isPokemonLoading ? (
-                <div className="flex h-32 w-32 items-center justify-center rounded-full border border-dashed border-gray-300 text-[10px] font-medium text-gray-400">
-                  Loading...
+                <div className="relative flex h-32 w-32 items-center justify-center text-[10px] font-medium text-gray-400">
+                  <svg className="absolute inset-0" viewBox="0 0 128 128" aria-hidden="true">
+                    <circle
+                      className="pokemon-spinner-circle"
+                      cx="64"
+                      cy="64"
+                      r="58"
+                      fill="none"
+                      stroke="#d1d5db"
+                      strokeWidth="3"
+                      strokeDasharray="6 12"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <span>Loading...</span>
                 </div>
               ) : (
-                <img
-                  src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemonId}.png`}
-                  alt={`Gen 1 Pokemon #${pokemonId}`}
-                  className="h-32 w-32"
-                  loading="lazy"
-                />
+                <>
+                  <img
+                    src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemonId}.png`}
+                    alt={`Gen 1 Pokemon #${pokemonId}`}
+                    className="h-32 w-32"
+                    loading="lazy"
+                  />
+                  <div className="text-[10px] font-medium text-gray-500">
+                    #{pokemonId} {pokemonName}
+                  </div>
+                </>
               )}
-              <div className="text-[10px] font-medium text-gray-500">
-                #{pokemonId} {pokemonName}
-              </div>
             </div>
           </section>
         </div>
