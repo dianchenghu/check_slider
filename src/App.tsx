@@ -54,6 +54,13 @@ type ScaleBarProps = {
   headerIndicatorColor?: string;
 };
 
+type LastUpdateInfo = {
+  name: string;
+  field: "Mood" | "Workload";
+  status: string;
+  timestamp: Date | null;
+};
+
 const moodLevels: ScaleLevel[] = [
   {
     label: "Miserable",
@@ -377,6 +384,7 @@ function App() {
   const [personStates, setPersonStates] = useState(() =>
     people.map(() => ({ mood: 2, workload: 2 }))
   );
+  const [lastUpdate, setLastUpdate] = useState<LastUpdateInfo | null>(null);
   const [isPokemonLoading, setIsPokemonLoading] = useState(true);
   const hasLoadedRef = useRef(false);
   const saveTimeoutRef = useRef<number | null>(null);
@@ -410,7 +418,15 @@ function App() {
     const sharedRef = doc(db, "statuschecks", "shared");
     const unsubscribe = onSnapshot(sharedRef, (snapshot) => {
       if (snapshot.exists()) {
-        const data = snapshot.data() as { people?: { mood: number; workload: number }[] };
+        const data = snapshot.data() as {
+          people?: { mood: number; workload: number }[];
+          lastUpdate?: {
+            name?: string;
+            field?: "Mood" | "Workload";
+            status?: string;
+            timestamp?: { toDate?: () => Date };
+          };
+        };
         if (Array.isArray(data.people) && data.people.length === people.length) {
           const next = data.people.map((person) => ({
             mood: typeof person.mood === "number" ? person.mood : 2,
@@ -424,6 +440,14 @@ function App() {
               window.localStorage.setItem(STORAGE_KEY, nextSerialized);
             }
           }
+        }
+        if (data.lastUpdate?.name && data.lastUpdate?.field && data.lastUpdate?.status) {
+          setLastUpdate({
+            name: data.lastUpdate.name,
+            field: data.lastUpdate.field,
+            status: data.lastUpdate.status,
+            timestamp: data.lastUpdate.timestamp?.toDate?.() ?? null,
+          });
         }
       }
       hasLoadedRef.current = true;
@@ -445,7 +469,18 @@ function App() {
       const sharedRef = doc(db, "statuschecks", "shared");
       await setDoc(
         sharedRef,
-        { people: personStates, updatedAt: serverTimestamp() },
+        {
+          people: personStates,
+          updatedAt: serverTimestamp(),
+          lastUpdate: lastUpdate
+            ? {
+                name: lastUpdate.name,
+                field: lastUpdate.field,
+                status: lastUpdate.status,
+                timestamp: serverTimestamp(),
+              }
+            : undefined,
+        },
         { merge: true }
       );
       lastSyncedRef.current = serialized;
@@ -490,6 +525,33 @@ function App() {
     day: "numeric",
     year: "numeric",
   });
+  const formattedLastUpdate =
+    lastUpdate?.timestamp?.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }) ?? "unknown time";
+  const handlePersonChange = (
+    index: number,
+    field: "mood" | "workload",
+    value: number,
+  ) => {
+    setPersonStates((current) =>
+      current.map((state, idx) =>
+        idx === index ? { ...state, [field]: value } : state
+      )
+    );
+    const levelIndex = Math.min(4, Math.max(0, Math.round(value)));
+    const status =
+      field === "mood" ? moodLevels[levelIndex].label : workloadLevels[levelIndex].label;
+    setLastUpdate({
+      name: people[index].name,
+      field: field === "mood" ? "Mood" : "Workload",
+      status,
+      timestamp: new Date(),
+    });
+  };
 
   useEffect(() => {
     setIsPokemonLoading(true);
@@ -657,13 +719,7 @@ function App() {
                   trackClassName="scale-input--mood"
                   showStatusBadge
                   disabled={!canEdit}
-                  onChange={(value) =>
-                    setPersonStates((current) =>
-                      current.map((state, idx) =>
-                        idx === index ? { ...state, mood: value } : state
-                      )
-                    )
-                  }
+                  onChange={(value) => handlePersonChange(index, "mood", value)}
                 />
                 <ScaleBar
                   levels={workloadLevels}
@@ -673,13 +729,7 @@ function App() {
                   trackClassName="scale-input--workload"
                   showStatusBadge
                   disabled={!canEdit}
-                  onChange={(value) =>
-                    setPersonStates((current) =>
-                      current.map((state, idx) =>
-                        idx === index ? { ...state, workload: value } : state
-                      )
-                    )
-                  }
+                  onChange={(value) => handlePersonChange(index, "workload", value)}
                 />
               </div>
             </section>
@@ -721,6 +771,11 @@ function App() {
               )}
             </div>
           </section>
+        </div>
+        <div className="mt-2 text-right text-xs text-gray-400">
+          {lastUpdate
+            ? `last update: ${lastUpdate.name} ${lastUpdate.field} set to ${lastUpdate.status} on ${formattedLastUpdate}`
+            : "last update: none"}
         </div>
       </div>
     </div>
